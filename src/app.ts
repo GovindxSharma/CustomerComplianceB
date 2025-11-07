@@ -1,10 +1,11 @@
+import "./config"; // loads env first
 import express from "express";
 import mongoose from "mongoose";
 import routes from "./routes";
-import dotenv from "dotenv";
+// import dotenv from "dotenv";
 // import "./commons/express.d";
 
-dotenv.config();
+// dotenv.config();
 const app = express();
 app.use(express.json());
 
