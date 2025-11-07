@@ -13,26 +13,26 @@ import { authenticate } from "../middlewares/auth"; // JWT auth middleware
 const router = Router();
 
 // All routes require authentication first
-// router.use(authenticate);
+router.use(authenticate);
 
 router.post("/",
-    // checkRole([Roles.ADMIN]),
+    checkRole([Roles.ADMIN]),
     createCompany);
 
 router.get("/",
-    // checkRole([Roles.ADMIN]),
+    checkRole([Roles.ADMIN]),
     getCompanies);
 
 router.get("/:id",
-    // checkRole([Roles.ADMIN]),
+    checkRole([Roles.ADMIN]),
     getCompanyById);
 
 router.put("/:id",
-    // checkRole([Roles.ADMIN]),
+    checkRole([Roles.ADMIN]),
     updateCompany);
 
 router.delete("/:id",
-    // checkRole([Roles.ADMIN]),
+    checkRole([Roles.ADMIN]),
     deleteCompany);
 
 export default router;

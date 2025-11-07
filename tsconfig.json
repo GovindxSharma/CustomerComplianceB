@@ -5,6 +5,9 @@
     "rootDir": "./src",
     "outDir": "./dist",
 
+    "typeRoots": ["./node_modules/@types", "./src/commons"],
+
+
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
     "module": "CommonJS",
@@ -42,8 +45,8 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
-    "resolveJsonModule": true,
+    "resolveJsonModule": true
     // "allowImportingTsExtensions": true
   },
-  "include": ["src"]
+  "include": ["src/**/*.ts"]
 }
