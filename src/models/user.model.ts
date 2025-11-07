@@ -18,11 +18,24 @@ export interface IUser extends Document {
 
 const userSchema = new Schema<IUser>(
   {
-    user_id: { type: String, required: true, unique: true, trim: true },
+    user_id: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      default: function () {
+        const prefix = this.role === "Employee" ? "EMP" : "USR";
+        const randomNum = Math.floor(Math.random() * 10000);
+        return `${prefix}-${Date.now().toString().slice(-5)}-${randomNum
+          .toString()
+          .padStart(4, "0")}`;
+      },
+    },
     name: { type: String, required: true, trim: true },
     email: {
       type: String,
       unique: true,
+      sparse: true, // allows multiple docs with undefined email
       lowercase: true,
       trim: true,
       validate: {
@@ -35,7 +48,7 @@ const userSchema = new Schema<IUser>(
         message: "Email is required for Admin or Accountant",
       },
     },
-    password: { type: String, required: true },
+    password: { type: String, required: true, minlength: 6 },
     role: {
       type: String,
       enum: ["Admin", "Employee", "Accountant"],
@@ -52,21 +65,12 @@ const userSchema = new Schema<IUser>(
   { timestamps: true }
 );
 
-// 🔒 Pre-save hook to hash password & generate user_id
+// 🔒 Pre-save hook to hash password
 userSchema.pre("save", async function (next) {
-  // Hash password if modified
   if (this.isModified("password")) {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
   }
-
-  // Auto-generate user_id if missing
-  if (!this.user_id) {
-    const prefix = this.role === "Employee" ? "EMP" : "USR";
-    const randomNum = Math.floor(Math.random() * 10000);
-    this.user_id = `${prefix}-${randomNum.toString().padStart(4, "0")}`;
-  }
-
   next();
 });
 
