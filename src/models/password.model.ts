@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
+import { encryptPassword } from "../utils/passwordService"; // import utility
 
 export interface IPassword extends Document {
   company_id: mongoose.Schema.Types.ObjectId;
@@ -40,5 +41,16 @@ const passwordSchema = new Schema<IPassword>(
   },
   { timestamps: true }
 );
+
+// ------------------------------
+// Pre-save hook for encryption
+// ------------------------------
+passwordSchema.pre("save", function (next) {
+  if (this.isModified("password")) {
+    this.password = encryptPassword(this.password);
+    this.lastUpdated = new Date(); // update lastUpdated timestamp automatically
+  }
+  next();
+});
 
 export const Password = mongoose.model<IPassword>("Password", passwordSchema);
