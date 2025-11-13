@@ -1,11 +1,18 @@
-// src/services/email.service.ts
 import nodemailer from "nodemailer";
+import path from "path";
+
+interface EmailAttachment {
+  filename: string;
+  path: string;
+  cid?: string; // optional — only needed if embedding inline
+}
 
 interface SendEmailOptions {
   to: string;
   subject: string;
   text?: string;
   html?: string;
+  attachments?: EmailAttachment[];
 }
 
 const createTransporter = () => {
@@ -15,9 +22,8 @@ const createTransporter = () => {
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASS;
 
-  // Basic validation
   if (!host || !port || !user || !pass) {
-    console.error("Email env variables not set correctly:", {
+    console.error("❌ Email env variables not set correctly:", {
       host,
       port,
       user,
@@ -26,14 +32,7 @@ const createTransporter = () => {
     throw new Error("Email environment variables are missing!");
   }
 
-  console.log(
-    "Creating email transporter with host:",
-    host,
-    "port:",
-    port,
-    "secure:",
-    secure
-  );
+  console.log("📧 Creating email transporter:", { host, port, secure });
 
   return nodemailer.createTransport({
     host,
@@ -48,22 +47,34 @@ export const sendEmail = async ({
   subject,
   text,
   html,
+  attachments = [],
 }: SendEmailOptions) => {
   try {
     const transporter = createTransporter();
 
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL_USER, // sender address
+    // normalize attachments (if paths are relative)
+    const normalizedAttachments = attachments.map((att) => ({
+      ...att,
+      path: path.resolve(att.path),
+    }));
+
+    const mailOptions = {
+      from: `"Customer Compliance Services" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       text,
       html,
-    });
+      ...(normalizedAttachments.length > 0 && {
+        attachments: normalizedAttachments,
+      }),
+    };
 
-    console.log("Email sent successfully! Message ID:", info.messageId);
+    const info = await transporter.sendMail(mailOptions);
+
+    console.log("✅ Email sent successfully! Message ID:", info.messageId);
     return info;
   } catch (err) {
-    console.error("Error sending email:", err);
+    console.error("❌ Error sending email:", err);
     throw err;
   }
 };

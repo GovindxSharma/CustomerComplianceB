@@ -2,11 +2,21 @@ import "./config"; // loads env first
 import express from "express";
 import mongoose from "mongoose";
 import routes from "./routes";
+import cors from "cors";
 // import dotenv from "dotenv";
 // import "./commons/express.d";
 
 // dotenv.config();
 const app = express();
+
+app.use(
+  cors({
+    origin: "http://localhost:5173", // frontend URL
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true, // if you're sending cookies or auth headers
+  })
+);
+
 app.use(express.json());
 
 // MongoDB Connection
