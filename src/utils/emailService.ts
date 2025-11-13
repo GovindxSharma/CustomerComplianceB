@@ -39,6 +39,9 @@ const createTransporter = () => {
     port,
     secure,
     auth: { user, pass },
+    pool: true,
+    maxConnections: 5,
+    maxMessages: 100, 
   });
 };
 

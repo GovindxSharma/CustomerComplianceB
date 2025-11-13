@@ -15,7 +15,6 @@ export const sendWelcomeEmailController = async (
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // build attachments list dynamically
     const attachments =
       files?.map((file) => ({
         filename: file.originalname,
@@ -24,23 +23,30 @@ export const sendWelcomeEmailController = async (
 
     const htmlContent = clientWelcomeEmail(contactPerson, companyName);
 
-    await sendEmail({
+    // ✅ Send response immediately
+    res.status(200).json({ message: "Email queued for sending" });
+
+    // 🚀 Fire-and-forget email send
+    sendEmail({
       to: email,
       subject: "Welcome to CCS - Contractor Compliance Services",
       html: htmlContent,
       ...(attachments.length > 0 && { attachments }),
-    });
-
-    console.log(
-      `📨 Email sent to ${email} with ${attachments.length} attachments`
-    );
-
-    // cleanup uploaded files (optional)
-    attachments.forEach((att) => fs.unlink(att.path, () => {}));
-
-    res.status(200).json({ message: "Email sent successfully" });
+    })
+      .then((info) => {
+        console.log(
+          `📨 Email sent to ${email} with ${attachments.length} attachments`
+        );
+      })
+      .catch((error) => {
+        console.error("❌ Error sending email in background:", error);
+      })
+      .finally(() => {
+        // optional cleanup
+        attachments.forEach((att) => fs.unlink(att.path, () => {}));
+      });
   } catch (error) {
-    console.error("❌ Error sending email:", error);
-    res.status(500).json({ message: "Error sending welcome email" });
+    console.error("❌ Error handling email request:", error);
+    res.status(500).json({ message: "Error initiating welcome email" });
   }
 };
