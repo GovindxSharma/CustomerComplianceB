@@ -1,9 +1,10 @@
-// src/controllers/client.controller.ts
 import { Request, Response } from "express";
 import { Client } from "../models/client.model";
-import { sendEmail } from "../utils/emailService"; // our central email utility
+import { sendEmail } from "../utils/emailService";
+import { clientWelcomeEmail } from "../commons/emailContents";
+import { generateMonthlyComplianceRecordsForClient } from "../helpers/monthlyCompliance.helper";
+import mongoose from "mongoose";
 
-// Create client
 export const createClient = async (req: Request, res: Response) => {
   try {
     const {
@@ -15,15 +16,16 @@ export const createClient = async (req: Request, res: Response) => {
       address,
       businessUnit,
       site,
-      sendWelcomeEmail = false, // optional boolean to send welcome email
+      sendWelcomeEmail = false,
       company_id,
+      startMonth,
+      startYear,
     } = req.body;
 
     if (!name || !contactPerson || !contactNumber || !company_id) {
       return res.status(400).json({ message: "Required fields missing" });
     }
 
-    // Check if client already exists by name + company
     const existing = await Client.findOne({ email, company_id });
     if (existing) {
       return res
@@ -43,18 +45,34 @@ export const createClient = async (req: Request, res: Response) => {
       company_id,
     });
 
-      console.log(sendWelcomeEmail, email)
-    // Send welcome email if requested and email exists
-    if (sendWelcomeEmail && email) {
-      await sendEmail({
-        to: email,
-        subject: "Welcome to CCS",
-        text: `Hello ${contactPerson}, your company ${name} has been registered!`,
-        html: `<p>Hello <strong>${contactPerson}</strong>, your company <strong>${name}</strong> has been registered!</p>`,
-      });
-      console.log(`Welcome email sent to ${email}`);
-      }
-      
+    await generateMonthlyComplianceRecordsForClient(
+      client._id as mongoose.Types.ObjectId,
+      startMonth,
+      startYear,
+      company_id,
+      req.user!.id as unknown as mongoose.Types.ObjectId // make sure req.user is typed
+    );
+
+    // Send welcome email if requested
+    // if (sendWelcomeEmail && email) {
+    //   const htmlContent = clientWelcomeEmail(contactPerson, name);
+
+    //   await sendEmail({
+    //     to: email,
+    //     subject: "Welcome to CCS - Contractor Compliance Services",
+    //     html: htmlContent,
+    //     attachments: [
+    //       {
+    //         filename: "ccs.png",
+    //         path: "./src/commons/ccs.png", // make sure this path is correct
+    //         cid: "ccslogo", // same as in the <img> tag
+    //       },
+    //     ],
+    //   });
+
+    //   console.log(`Welcome email sent to ${email}`);
+    // }
+
     res.status(201).json({ message: "Client created successfully", client });
   } catch (err) {
     console.error(err);
