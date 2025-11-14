@@ -17,7 +17,7 @@ export const createClient = async (req: Request, res: Response) => {
       company_id,
       startMonth,
       startYear,
-      assignedTo, 
+      assignedTo,
     } = req.body;
 
     if (!name || !contactPerson || !contactNumber || !company_id) {
@@ -31,6 +31,10 @@ export const createClient = async (req: Request, res: Response) => {
         .json({ message: "Client already exists for this company" });
     }
 
+    // parse startMonth and startYear to numbers
+    const startMonthNum = Number(startMonth);
+    const startYearNum = Number(startYear);
+
     const client = await Client.create({
       name,
       contactPerson,
@@ -41,17 +45,15 @@ export const createClient = async (req: Request, res: Response) => {
       businessUnit,
       site,
       company_id,
-      ...(assignedTo && { assignedTo }), 
+      ...(assignedTo && { assignedTo }),
+      startMonth: startMonthNum.toString(), // save as string like in schema
+      startYear: startYearNum,
     });
-
-    // parse startMonth and startYear to numbers
-    const startMonthNum = Number(startMonth);
-    const startYearNum = Number(startYear);
 
     await generateMonthlyComplianceRecordsForClient(
       client._id as mongoose.Types.ObjectId,
       startMonthNum,
-      startYearNum,
+      startYearNum
     );
 
     res.status(201).json({ message: "Client created successfully", client });
@@ -60,6 +62,7 @@ export const createClient = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // Get all clients for a company
 export const getClients = async (req: Request, res: Response) => {
