@@ -120,3 +120,27 @@ export const loginUser = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+export const getEmployeesByCompany = async (req: Request, res: Response) => {
+  try {
+    const companyId = req.user?.company_id;
+
+    if (!companyId) {
+      return res
+        .status(400)
+        .json({ message: "Company ID not found in request" });
+    }
+
+    // Find users with role 'EMPLOYEE' in the same company
+    const employees = await User.find({
+      company_id: companyId,
+      role: Roles.EMPLOYEE,
+      isActive: true,
+    }).select("_id name email role"); // optional: select only needed fields
+
+    res.status(200).json({ employees });
+  } catch (err) {
+    console.error("❌ Error fetching employees:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};

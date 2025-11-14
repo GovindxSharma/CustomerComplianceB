@@ -6,10 +6,12 @@ import {
   updateUser,
   deleteUser,
   loginUser,
+  getEmployeesByCompany,
 } from "../controllers/user.controller";
 import { authenticate } from "../middlewares/auth";
 import { checkRole } from "../middlewares/checkRole";
 import { Roles } from "../commons/roles";
+
 
 const router = Router();
 
@@ -18,6 +20,8 @@ router.post("/login", loginUser);
 
 // Protected routes
 router.use(authenticate);
+
+router.get("/employees", checkRole([Roles.ADMIN]), getEmployeesByCompany);    
 
 // Only Admin can create users
 router.post("/",
@@ -38,8 +42,12 @@ router.get("/:id",
 router.put("/:id",
     checkRole([Roles.ADMIN]),
     updateUser);
+
 router.delete("/:id",
     checkRole([Roles.ADMIN]),
     deleteUser);
+
+router.get("/employees", checkRole([Roles.ADMIN]), getEmployeesByCompany);    
+
 
 export default router;

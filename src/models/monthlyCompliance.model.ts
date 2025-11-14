@@ -33,7 +33,7 @@ const monthlyComplianceSchema = new Schema<IMonthlyCompliance>(
     category_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
-      required: true,
+      default: null,
     },
     dataReceiveStatus: {
       type: String,
@@ -59,6 +59,12 @@ const monthlyComplianceSchema = new Schema<IMonthlyCompliance>(
   },
   { timestamps: true }
 );
+
+monthlyComplianceSchema.index(
+  { client_id: 1, month: 1, year: 1 },
+  { unique: true }
+);
+
 
 export const MonthlyCompliance = mongoose.model<IMonthlyCompliance>(
   "MonthlyCompliance",
