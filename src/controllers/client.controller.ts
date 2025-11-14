@@ -1,7 +1,5 @@
 import { Request, Response } from "express";
 import { Client } from "../models/client.model";
-import { sendEmail } from "../utils/emailService";
-import { clientWelcomeEmail } from "../commons/emailContents";
 import { generateMonthlyComplianceRecordsForClient } from "../helpers/monthlyCompliance.helper";
 import mongoose from "mongoose";
 
@@ -16,10 +14,10 @@ export const createClient = async (req: Request, res: Response) => {
       address,
       businessUnit,
       site,
-      sendWelcomeEmail = false,
       company_id,
       startMonth,
       startYear,
+      assignedTo, 
     } = req.body;
 
     if (!name || !contactPerson || !contactNumber || !company_id) {
@@ -43,35 +41,18 @@ export const createClient = async (req: Request, res: Response) => {
       businessUnit,
       site,
       company_id,
+      ...(assignedTo && { assignedTo }), 
     });
+
+    // parse startMonth and startYear to numbers
+    const startMonthNum = Number(startMonth);
+    const startYearNum = Number(startYear);
 
     await generateMonthlyComplianceRecordsForClient(
       client._id as mongoose.Types.ObjectId,
-      startMonth,
-      startYear,
-      company_id,
-      req.user!.id as unknown as mongoose.Types.ObjectId // make sure req.user is typed
+      startMonthNum,
+      startYearNum,
     );
-
-    // Send welcome email if requested
-    // if (sendWelcomeEmail && email) {
-    //   const htmlContent = clientWelcomeEmail(contactPerson, name);
-
-    //   await sendEmail({
-    //     to: email,
-    //     subject: "Welcome to CCS - Contractor Compliance Services",
-    //     html: htmlContent,
-    //     attachments: [
-    //       {
-    //         filename: "ccs.png",
-    //         path: "./src/commons/ccs.png", // make sure this path is correct
-    //         cid: "ccslogo", // same as in the <img> tag
-    //       },
-    //     ],
-    //   });
-
-    //   console.log(`Welcome email sent to ${email}`);
-    // }
 
     res.status(201).json({ message: "Client created successfully", client });
   } catch (err) {
