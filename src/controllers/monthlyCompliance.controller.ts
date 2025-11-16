@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { MonthlyCompliance } from "../models/monthlyCompliance.model";
 import { Roles } from "../commons/roles";
+import { Category } from "../models/category.model";
 
 // Helper to generate monthly records for a client
 export const generateMonthlyComplianceForClient = async (
@@ -70,15 +71,22 @@ export const getMonthlyComplianceByClient = async (
 ) => {
   try {
     const { clientId } = req.params;
+
     const records = await MonthlyCompliance.find({
       client_id: clientId,
-    }).populate("category_id", "name");
+    }).populate({
+      path: "category_id",
+      select: "name",
+      // If category_id is null, populate will just return null
+    });
+
     res.status(200).json(records);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // Get a single record by ID
 export const getMonthlyComplianceById = async (req: Request, res: Response) => {
@@ -105,6 +113,7 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
       workProgress,
       expectedBill,
       actualBill,
+      billStatus,
       remarks,
     } = req.body;
 
@@ -123,11 +132,13 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
     } else if (role === Roles.ACCOUNTANT) {
       if (expectedBill !== undefined) record.expectedBill = expectedBill;
       if (actualBill !== undefined) record.actualBill = actualBill;
+      if (billStatus !== undefined) record.billStatus = billStatus;
     } else if (role === Roles.ADMIN) {
       if (dataReceiveStatus) record.dataReceiveStatus = dataReceiveStatus;
       if (workProgress) record.workProgress = workProgress;
       if (expectedBill !== undefined) record.expectedBill = expectedBill;
       if (actualBill !== undefined) record.actualBill = actualBill;
+      if (billStatus !== undefined) record.billStatus = billStatus;
       if (remarks) record.remarks = remarks;
     } else {
       return res.status(403).json({ message: "Forbidden" });

@@ -16,6 +16,7 @@ export interface IMonthlyCompliance extends Document {
   expectedBill?: number;
   actualBill?: number;
   remarks?: string;
+  billStatus?: string;
   updatedBy?: mongoose.Schema.Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
@@ -50,6 +51,11 @@ const monthlyComplianceSchema = new Schema<IMonthlyCompliance>(
       type: String,
       enum: ["Not Started", "Payment Overdue", "Completed", "In Progress"],
       default: "Not Started",
+    },
+    billStatus: {
+      type: String,
+      enum: ["Pending", "Generated"],
+      default: "Pending",
     },
     workersAsPerData: { type: Number, default: 0 },
     expectedBill: { type: Number, default: 0 },

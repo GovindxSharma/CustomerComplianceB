@@ -4,6 +4,7 @@ import companyRoutes from "./company.routes";
 import userRoutes from "./user.routes";
 import clientRoutes from "./client.routes"
 import emailRoutes from "./email.routes"
+import monthlyComplianceRoutes from "./monthlyCompliance.routes"
 
 
 const router = Router();
@@ -13,6 +14,7 @@ router.use("/auth", authRoutes);
 router.use("/company", companyRoutes);
 router.use("/user", userRoutes);
 router.use("/client", clientRoutes);
-router.use("/email", emailRoutes)
+router.use("/email", emailRoutes);
+router.use("/monthly-compliance", monthlyComplianceRoutes);
 
 export default router;
