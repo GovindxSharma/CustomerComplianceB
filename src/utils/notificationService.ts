@@ -11,7 +11,7 @@ interface SendNotificationOptions {
     | "Overdue"
     | "Ticket Raised"
     | "Client Added"
-    |"Client Updated"
+    | "Client Updated"
     | "Password Added/Updated"
     | "License Added"
     | "License Updated"

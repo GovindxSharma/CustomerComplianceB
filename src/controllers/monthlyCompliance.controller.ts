@@ -4,6 +4,8 @@ import mongoose from "mongoose";
 import { MonthlyCompliance } from "../models/monthlyCompliance.model";
 import { Roles } from "../commons/roles";
 import { Category } from "../models/category.model";
+import { sendNotification } from "../utils/notificationService";
+import { User } from "../models/user.model";
 
 // Helper to generate monthly records for a client
 export const generateMonthlyComplianceForClient = async (
@@ -117,45 +119,166 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
       remarks,
     } = req.body;
 
-    const record = await MonthlyCompliance.findById(id);
+    const record = await MonthlyCompliance.findById(id).populate("client_id");
     if (!record) return res.status(404).json({ message: "Record not found" });
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
-    if (!req.user) {
-        return res.status(401).json({ message: "Unauthorized" });
-}
-    // Role-based updates
     const role = req.user.role;
 
+    // ----------------- DETECT CHANGES -----------------
+    const changes: {
+      type: "Data Received" | "Progress Updated" | "Bill Generated";
+      message: string;
+    }[] = [];
+
+    const clientData = record.client_id as any;
+    const clientName = clientData.name || "Client";
+    const clientId = clientData._id;
+    const clientCompanyId = clientData.company_id;
+    const assignedEmployee = clientData.assignedTo;
+
+    // Role-based updates and change detection
     if (role === Roles.EMPLOYEE) {
-      if (dataReceiveStatus) record.dataReceiveStatus = dataReceiveStatus;
-      if (workProgress) record.workProgress = workProgress;
+      if (dataReceiveStatus && dataReceiveStatus !== record.dataReceiveStatus) {
+        record.dataReceiveStatus = dataReceiveStatus;
+        changes.push({
+          type: "Data Received",
+          message: `Data Receive Status updated to '${dataReceiveStatus}' for ${clientName}`,
+        });
+      }
+      if (workProgress && workProgress !== record.workProgress) {
+        record.workProgress = workProgress;
+        changes.push({
+          type: "Progress Updated",
+          message: `Work Progress updated to '${workProgress}' for ${clientName}`,
+        });
+      }
     } else if (role === Roles.ACCOUNTANT) {
-      if (expectedBill !== undefined) record.expectedBill = expectedBill;
-      if (actualBill !== undefined) record.actualBill = actualBill;
-      if (billStatus !== undefined) record.billStatus = billStatus;
+      if (expectedBill !== undefined && expectedBill !== record.expectedBill) {
+        record.expectedBill = expectedBill;
+      }
+      if (actualBill !== undefined && actualBill !== record.actualBill) {
+        record.actualBill = actualBill;
+      }
+      if (billStatus && billStatus !== record.billStatus) {
+        record.billStatus = billStatus;
+        changes.push({
+          type: "Bill Generated",
+          message: `Bill Status updated to '${billStatus}' for ${clientName}`,
+        });
+      }
     } else if (role === Roles.ADMIN) {
-      if (dataReceiveStatus) record.dataReceiveStatus = dataReceiveStatus;
-      if (workProgress) record.workProgress = workProgress;
-      if (expectedBill !== undefined) record.expectedBill = expectedBill;
-      if (actualBill !== undefined) record.actualBill = actualBill;
-      if (billStatus !== undefined) record.billStatus = billStatus;
-      if (remarks) record.remarks = remarks;
+      if (dataReceiveStatus && dataReceiveStatus !== record.dataReceiveStatus) {
+        record.dataReceiveStatus = dataReceiveStatus;
+        changes.push({
+          type: "Data Received",
+          message: `Data Receive Status updated to '${dataReceiveStatus}' for ${clientName}`,
+        });
+      }
+      if (workProgress && workProgress !== record.workProgress) {
+        record.workProgress = workProgress;
+        changes.push({
+          type: "Progress Updated",
+          message: `Work Progress updated to '${workProgress}' for ${clientName}`,
+        });
+      }
+      if (expectedBill !== undefined && expectedBill !== record.expectedBill) {
+        record.expectedBill = expectedBill;
+      }
+      if (actualBill !== undefined && actualBill !== record.actualBill) {
+        record.actualBill = actualBill;
+      }
+      if (billStatus && billStatus !== record.billStatus) {
+        record.billStatus = billStatus;
+        changes.push({
+          type: "Bill Generated",
+          message: `Bill Status updated to '${billStatus}' for ${clientName}`,
+        });
+      }
+      if (remarks && remarks !== record.remarks) {
+        record.remarks = remarks;
+      }
     } else {
       return res.status(403).json({ message: "Forbidden" });
     }
 
-record.updatedBy = new mongoose.Types.ObjectId(
-  req.user.id
-) as unknown as mongoose.Schema.Types.ObjectId;
-
+    record.updatedBy = new mongoose.Types.ObjectId(
+      req.user.id
+    ) as unknown as mongoose.Schema.Types.ObjectId;
     await record.save();
 
-    res.status(200).json({ message: "Record updated", record });
+    // ----------------- FETCH RECIPIENTS -----------------
+    const adminRecipients = await User.find(
+      {
+        role: Roles.ADMIN,
+        company_id: clientCompanyId,
+        _id: { $ne: req.user.id },
+      },
+      { _id: 1 }
+    );
+
+    const employeeRecipients: mongoose.Types.ObjectId[] =
+      assignedEmployee && assignedEmployee.toString() !== req.user.id
+        ? [assignedEmployee]
+        : [];
+
+    const accountantRecipients =
+      workProgress === "Completed"
+        ? (
+            await User.find(
+              {
+                role: Roles.ACCOUNTANT,
+                company_id: clientCompanyId,
+                _id: { $ne: req.user.id },
+              },
+              { _id: 1 }
+            )
+          ).map((u) => u._id as mongoose.Types.ObjectId)
+        : [];
+
+    // ----------------- SEND NOTIFICATIONS -----------------
+    for (const change of changes) {
+      let recipients: mongoose.Types.ObjectId[] = [];
+
+      // Admin always gets everything
+      recipients.push(
+        ...adminRecipients.map((u) => u._id as mongoose.Types.ObjectId)
+      );
+
+      // Employee gets only bill updates
+      if (change.type === "Bill Generated") {
+        recipients.push(...employeeRecipients);
+      }
+
+      // Accountant gets only when progress completed
+      if (change.type === "Progress Updated" && workProgress === "Completed") {
+        recipients.push(...accountantRecipients);
+      }
+
+      // Remove duplicates
+      recipients = [...new Set(recipients)];
+
+      if (recipients.length > 0) {
+        await sendNotification({
+          client_id: clientId,
+          company_id: clientCompanyId,
+          type: change.type,
+          message: change.message,
+          createdBy: new mongoose.Types.ObjectId(req.user.id),
+          recipients,
+        });
+      }
+    }
+
+    return res.status(200).json({ message: "Record updated", record });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
+
+
+
 
 // Delete record (Admin only)
 export const deleteMonthlyCompliance = async (req: Request, res: Response) => {
