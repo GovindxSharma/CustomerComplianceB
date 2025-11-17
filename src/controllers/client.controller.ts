@@ -4,7 +4,11 @@ import { generateMonthlyComplianceRecordsForClient } from "../helpers/monthlyCom
 import mongoose from "mongoose";
 import { MonthlyCompliance } from "../models/monthlyCompliance.model";
 import {User} from "../models/user.model"; // make sure this is your user model
+import { sendNotification } from "../utils/notificationService";
+import { Roles } from "../commons/roles";
 
+const toObjectId = (value: any): mongoose.Types.ObjectId =>
+  new mongoose.Types.ObjectId(String(value));
 
 export const createClient = async (req: Request, res: Response) => {
   try {
@@ -59,6 +63,36 @@ export const createClient = async (req: Request, res: Response) => {
       startYearNum
     );
 
+    const admins = await User.find({
+      company_id,
+      role: Roles.ADMIN,
+    });
+
+    const accountants = await User.find({
+      company_id,
+      role: Roles.ACCOUNTANT,
+    });
+
+    const recipients: mongoose.Types.ObjectId[] = [
+      ...admins.map((u) => toObjectId(u._id)),
+      ...accountants.map((u) => toObjectId(u._id)),
+    ];
+
+    if (assignedTo) {
+      recipients.push(toObjectId(assignedTo));
+    }
+
+    const createdBy = toObjectId(req.user!.id);
+
+    await sendNotification({
+      type: "Client Added",
+      message: `New client created: ${client.name}`,
+      client_id: toObjectId(client._id),
+      company_id: toObjectId(company_id),
+      createdBy,
+      recipients,
+    });
+
     res.status(201).json({ message: "Client created successfully", client });
   } catch (err) {
     console.error(err);
@@ -103,6 +137,40 @@ export const updateClient = async (req: Request, res: Response) => {
 
     const client = await Client.findByIdAndUpdate(id, updates, { new: true });
     if (!client) return res.status(404).json({ message: "Client not found" });
+
+    // 🔥 Notification Logic
+    // ----------------------------------------------------------
+
+    const createdBy = toObjectId(req.user!.id);
+    const companyId = toObjectId(client.company_id);
+
+    // Fetch admins + accountants for this company
+    const adminAndAccountantUsers = await User.find({
+      company_id: companyId,
+      role: { $in: [Roles.ADMIN, Roles.ACCOUNTANT] },
+    }).lean();
+
+    // Convert _id to ObjectId[]
+    const roleRecipients = adminAndAccountantUsers.map((u) =>
+      toObjectId(u._id)
+    );
+
+    // Assigned employee (optional)
+    const employeeRecipient = client.assignedTo
+      ? [toObjectId(client.assignedTo)]
+      : [];
+
+    const recipients = [...roleRecipients, ...employeeRecipient];
+
+    // Send the notification
+    await sendNotification({
+      client_id: toObjectId(client._id),
+      company_id: companyId,
+      type: "Client Updated",
+      message: `Client ${client.name} was updated.`,
+      createdBy: createdBy,
+      recipients,
+    });
 
     res.status(200).json({ message: "Client updated", client });
   } catch (err) {
@@ -260,4 +328,3 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-

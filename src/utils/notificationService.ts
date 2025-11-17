@@ -5,16 +5,17 @@ interface SendNotificationOptions {
   client_id?: mongoose.Types.ObjectId;
   company_id?: mongoose.Types.ObjectId;
   type:
-    | "DataReceived"
-    | "ProgressUpdated"
-    | "BillGenerated"
+    | "Data Received"
+    | "Progress Updated"
+    | "Bill Generated"
     | "Overdue"
-    | "TicketRaised"
-    | "ClientAdded"
+    | "Ticket Raised"
+    | "Client Added"
+    |"Client Updated"
     | "Password Added/Updated"
     | "License Added"
-  | "License Updated"
-  | "Company Updated";
+    | "License Updated"
+    | "Company Updated";
   message: string;
   createdBy: mongoose.Types.ObjectId;
   recipients: mongoose.Types.ObjectId[];
