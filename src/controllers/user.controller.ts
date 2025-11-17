@@ -131,12 +131,14 @@ export const getEmployeesByCompany = async (req: Request, res: Response) => {
         .json({ message: "Company ID not found in request" });
     }
 
-    // Find users with role 'EMPLOYEE' in the same company
+    // Find users with EMPLOYEE role, same company, and active
     const employees = await User.find({
       company_id: companyId,
       role: Roles.EMPLOYEE,
       isActive: true,
-    }).select("_id name email role"); // optional: select only needed fields
+    })
+      .select("_id name email role user_id")   // include user_id in result
+      .populate("user_id", "name email role"); // <-- populate specific fields
 
     res.status(200).json({ employees });
   } catch (err) {
@@ -144,3 +146,4 @@ export const getEmployeesByCompany = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
