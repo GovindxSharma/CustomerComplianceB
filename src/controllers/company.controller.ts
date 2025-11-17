@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
 import { Company } from "../models/company.model";
+import { sendNotification } from "../utils/notificationService";
+import { User } from "../models/user.model";
+import mongoose from "mongoose";
 
 export const createCompany = async (req: Request, res: Response) => {
   try {
@@ -54,6 +57,30 @@ export const updateCompany = async (req: Request, res: Response) => {
       { new: true }
     );
     if (!company) return res.status(404).json({ message: "Company not found" });
+
+const companyId = company._id as mongoose.Types.ObjectId;
+
+// Find admins of this company
+const adminUsers = await User.find({
+  company_id: companyId,
+  role: "Admin",
+}).select("_id");
+
+    const recipients = adminUsers.map((u) => u._id as mongoose.Types.ObjectId);
+    
+// Convert user id from JWT → ObjectId
+const createdBy = new mongoose.Types.ObjectId(req.user!.id);
+
+if (recipients.length > 0) {
+  await sendNotification({
+    company_id: companyId,
+    type: "Company Updated", // change later if adding CompanyUpdated type
+    message: `Company "${company.name}" details were updated.`,
+    createdBy,
+    recipients,
+  });
+}
+
     res.json({ message: "Company updated", company });
   } catch (err) {
     console.error(err);

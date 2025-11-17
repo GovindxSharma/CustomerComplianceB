@@ -66,7 +66,6 @@ export const createClient = async (req: Request, res: Response) => {
   }
 };
 
-
 // Get all clients for a company
 export const getClients = async (req: Request, res: Response) => {
   try {

@@ -13,6 +13,7 @@ export interface INotification extends Document {
     | "ClientAdded"
     | "Password Added/Updated"
     | "License Added"
+    | "Company Updated"
     | "License Updated";
   message: string;
   createdBy: mongoose.Schema.Types.ObjectId;
@@ -45,6 +46,7 @@ const notificationSchema = new Schema<INotification>(
         "ClientAdded",
         "Password Added/Updated",
         "License Added",
+        "Company Updated",
         "License Updated",
       ],
       required: true,

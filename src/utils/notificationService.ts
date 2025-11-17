@@ -2,16 +2,27 @@ import { Notification } from "../models/notification.model";
 import mongoose from "mongoose";
 
 interface SendNotificationOptions {
-  client_id?: mongoose.Schema.Types.ObjectId;
-  company_id?: mongoose.Schema.Types.ObjectId;
-  type: "DataReceived" | "ProgressUpdated" | "BillGenerated" | "Overdue" | "TicketRaised" | "ClientAdded" | "PasswordAddedOrUpdated";
+  client_id?: mongoose.Types.ObjectId;
+  company_id?: mongoose.Types.ObjectId;
+  type:
+    | "DataReceived"
+    | "ProgressUpdated"
+    | "BillGenerated"
+    | "Overdue"
+    | "TicketRaised"
+    | "ClientAdded"
+    | "Password Added/Updated"
+    | "License Added"
+  | "License Updated"
+  | "Company Updated";
   message: string;
-  createdBy: mongoose.Schema.Types.ObjectId;
-  recipients: mongoose.Schema.Types.ObjectId[]; // user IDs who will receive
+  createdBy: mongoose.Types.ObjectId;
+  recipients: mongoose.Types.ObjectId[];
 }
 
 export const sendNotification = async (options: SendNotificationOptions) => {
-  const { client_id, company_id, type, message, createdBy, recipients } = options;
+  const { client_id, company_id, type, message, createdBy, recipients } =
+    options;
 
   if (!recipients || recipients.length === 0) return;
 
@@ -21,7 +32,7 @@ export const sendNotification = async (options: SendNotificationOptions) => {
     type,
     message,
     createdBy,
-    recipient: user_id, // each user gets their own notification
+    recipient_id: user_id,
     isRead: false,
   }));
 
