@@ -5,12 +5,13 @@ export interface INotification extends Document {
   client_id?: mongoose.Schema.Types.ObjectId;
   company_id: mongoose.Schema.Types.ObjectId;
   type:
-    | "DataReceived"
-    | "ProgressUpdated"
-    | "BillGenerated"
+    | "Data Received"
+    | "Progress Updated"
+    | "Bill Generated"
     | "Overdue"
-    | "TicketRaised"
-    | "ClientAdded"
+    | "Ticket Raised"
+    | "Client Added"
+    | "Client Updated"
     | "Password Added/Updated"
     | "License Added"
     | "Company Updated"
@@ -38,12 +39,13 @@ const notificationSchema = new Schema<INotification>(
     type: {
       type: String,
       enum: [
-        "DataReceived",
-        "ProgressUpdated",
-        "BillGenerated",
+        "Data Received",
+        "Progress Updated",
+        "Bill Generated",
         "Overdue",
-        "TicketRaised",
-        "ClientAdded",
+        "Ticket Raised",
+        "Client Added",
+        "Client Updated",
         "Password Added/Updated",
         "License Added",
         "Company Updated",
