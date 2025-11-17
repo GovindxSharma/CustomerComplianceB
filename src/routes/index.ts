@@ -5,6 +5,7 @@ import userRoutes from "./user.routes";
 import clientRoutes from "./client.routes"
 import emailRoutes from "./email.routes"
 import monthlyComplianceRoutes from "./monthlyCompliance.routes"
+import notificationRoutes from "./notification.routes"
 
 
 const router = Router();
@@ -16,5 +17,6 @@ router.use("/user", userRoutes);
 router.use("/client", clientRoutes);
 router.use("/email", emailRoutes);
 router.use("/monthly-compliance", monthlyComplianceRoutes);
+router.use("/notification", notificationRoutes)
 
 export default router;
