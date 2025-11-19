@@ -20,7 +20,7 @@ router.get("/clients-with-compliance", getClientsWithCompliance);
 
 router.post("/", checkRole([Roles.ADMIN]), createClient);
 
-router.get("/", checkRole([Roles.ADMIN, Roles.ACCOUNTANT]), getClients);
+router.get("/", checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]), getClients);
 
 router.get("/:id", checkRole([Roles.ADMIN, Roles.ACCOUNTANT]), getClientById);
 

@@ -1,23 +1,58 @@
-import mongoose, { Document, Schema } from "mongoose";
+import mongoose, { Document, Schema, Types } from "mongoose";
+
+// export interface ITicketComment {
+//   user: mongoose.Schema.Types.ObjectId;
+//   message: string;
+//   timestamp: Date;
+// }
+
+// export interface ITicket extends Document {
+//   company_id: mongoose.Schema.Types.ObjectId;
+//   title: string;
+//   description?: string;
+//   priority: "Low" | "Medium" | "High" | "Urgent";
+//   status: "Open" | "In Progress" | "Resolved" | "Closed";
+//   raisedBy: mongoose.Schema.Types.ObjectId;
+//   assignedTo?: mongoose.Schema.Types.ObjectId;
+//   relatedClient?: mongoose.Schema.Types.ObjectId;
+//   comments?: ITicketComment[];
+//   isResolvedBy?: mongoose.Schema.Types.ObjectId;
+//   resolvedAt?: Date;
+//   createdAt?: Date;
+//   updatedAt?: Date;
+// }
+
+export interface IUserLean {
+  _id: Types.ObjectId;
+  name?: string;
+  email?: string;
+  role?: string;
+}
 
 export interface ITicketComment {
-  user: mongoose.Schema.Types.ObjectId;
+  user: Types.ObjectId | IUserLean;
   message: string;
   timestamp: Date;
 }
 
 export interface ITicket extends Document {
-  company_id: mongoose.Schema.Types.ObjectId;
+  company_id: Types.ObjectId;
+
   title: string;
   description?: string;
+
   priority: "Low" | "Medium" | "High" | "Urgent";
   status: "Open" | "In Progress" | "Resolved" | "Closed";
-  raisedBy: mongoose.Schema.Types.ObjectId;
-  assignedTo?: mongoose.Schema.Types.ObjectId;
-  relatedClient?: mongoose.Schema.Types.ObjectId;
+
+  raisedBy: Types.ObjectId | IUserLean;
+  assignedTo?: Types.ObjectId | IUserLean;
+  relatedClient?: Types.ObjectId;
+
   comments?: ITicketComment[];
-  isResolvedBy?: mongoose.Schema.Types.ObjectId;
+
+  isResolvedBy?: Types.ObjectId | IUserLean;
   resolvedAt?: Date;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -55,7 +90,7 @@ const ticketSchema = new Schema<ITicket>(
       ref: "User",
       required: true,
     },
-    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     relatedClient: { type: mongoose.Schema.Types.ObjectId, ref: "Client" },
     comments: [ticketCommentSchema],
     isResolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
