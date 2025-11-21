@@ -328,3 +328,35 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+export const getOverdueClients = async (req: Request, res: Response) => {
+  try {
+    const companyId = req.user!.company_id; // From auth middleware
+
+    if (!companyId) {
+      return res.status(400).json({
+        message: "Company ID missing from authenticated user.",
+      });
+    }
+
+    const overdueClients = await Client.find({
+      company_id: companyId,
+      isOverdue: true,
+    })
+      .populate("assignedTo", "name email")
+      .populate("lastUpdatedBy", "name email")
+      .sort({ updatedAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: overdueClients.length,
+      data: overdueClients,
+    });
+  } catch (error) {
+    console.error("Error fetching overdue clients:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching overdue clients",
+    });
+  }
+};
