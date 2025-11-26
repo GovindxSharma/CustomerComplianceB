@@ -199,7 +199,23 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
     if (!company_id)
       return res.status(400).json({ message: "company_id is required" });
 
-    const clients = await Client.find({ company_id }).lean();
+if (!req.user) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
+const loggedUser = req.user;
+const isEmployee = loggedUser.role === "Employee";
+
+
+    // Fetch clients of this company
+    let clients = await Client.find({ company_id }).lean();
+
+    // If employee, filter by assignedTo
+    if (isEmployee) {
+      clients = clients.filter(
+        (client) => client.assignedTo?.toString() === loggedUser.id.toString()
+      );
+    }
+
     const response: any[] = [];
 
     for (const client of clients) {
@@ -207,13 +223,14 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
         client_id: client._id,
       }).lean();
 
-      // Get assigned employee name
+      // Assigned employee name
       let assignedName = "-";
       if (client.assignedTo) {
         const user = await User.findById(client.assignedTo).lean();
-        if (user) assignedName = `${user.name}`;
+        if (user) assignedName = user.name;
       }
 
+      // If no monthly records
       if (!monthlyRecords || monthlyRecords.length === 0) {
         response.push({
           id: client._id,
@@ -227,7 +244,7 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
         continue;
       }
 
-      // Sort ascending → oldest to newest
+      // Sort oldest → newest
       monthlyRecords.sort((a, b) => {
         const aVal = Number(`${a.year}${String(a.month).padStart(2, "0")}`);
         const bVal = Number(`${b.year}${String(b.month).padStart(2, "0")}`);
@@ -236,9 +253,7 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
 
       const monthStr = (m: number, y: number) => `${m}-${y}`;
 
-      // -----------------------------
       // DATA STATUS
-      // -----------------------------
       let targetData = monthlyRecords.find(
         (rec) =>
           rec.dataReceiveStatus !== "Data Received" ||
@@ -271,9 +286,7 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
         }
       }
 
-      // -----------------------------
-      // BILL STATUS (Independent)
-      // -----------------------------
+      // BILL STATUS
       let billStatus = "-";
       for (const record of monthlyRecords) {
         const recMonth = Number(record.month);
@@ -290,7 +303,7 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
         }
       }
 
-      // If no pending bills, show last generated
+      // Last generated if no pending bills
       if (billStatus === "-") {
         const allGenerated = monthlyRecords.every(
           (r) =>
@@ -301,15 +314,15 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
 
         if (allGenerated && monthlyRecords.length > 0) {
           const last = monthlyRecords[monthlyRecords.length - 1];
-          const lastMonth = Number(last?.month ?? 0);
-          const lastYear = Number(last?.year ?? 0);
-          billStatus = `Bill Generated ${monthStr(lastMonth, lastYear)}`;
+          billStatus = `Bill Generated ${monthStr(
+            Number(last?.month ?? 0),
+            Number(last?.year ?? 0)
+          )}`;
         }
+
       }
 
-      // -----------------------------
       // FINAL RESPONSE
-      // -----------------------------
       response.push({
         id: client._id,
         name: client.name,
@@ -328,6 +341,7 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 export const getOverdueClients = async (req: Request, res: Response) => {
   try {
