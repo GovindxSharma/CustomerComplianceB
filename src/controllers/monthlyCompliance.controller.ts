@@ -6,6 +6,7 @@ import { Roles } from "../commons/roles";
 import { Category } from "../models/category.model";
 import { sendNotification } from "../utils/notificationService";
 import { User } from "../models/user.model";
+import { Client } from "../models/client.model";
 
 // Helper to generate monthly records for a client
 export const generateMonthlyComplianceForClient = async (
@@ -73,13 +74,26 @@ export const getMonthlyComplianceByClient = async (
 ) => {
   try {
     const { clientId } = req.params;
+    const loggedUser = req.user; // comes from auth middleware
+    if (!loggedUser) return res.status(401).json({ message: "Unauthorized" });
 
+    const client = await Client.findById(clientId);
+    if (!client) return res.status(404).json({ message: "Client not found" });
+
+    // ---------------- ROLE-BASED ACCESS ----------------
+    if (
+      loggedUser.role === Roles.EMPLOYEE &&
+      client.assignedTo?.toString() !== loggedUser.id.toString()
+    ) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    // Fetch monthly compliance
     const records = await MonthlyCompliance.find({
       client_id: clientId,
     }).populate({
       path: "category_id",
       select: "name",
-      // If category_id is null, populate will just return null
     });
 
     res.status(200).json(records);
@@ -88,6 +102,7 @@ export const getMonthlyComplianceByClient = async (
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 // Get a single record by ID
@@ -276,9 +291,6 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
-
-
-
 
 // Delete record (Admin only)
 export const deleteMonthlyCompliance = async (req: Request, res: Response) => {

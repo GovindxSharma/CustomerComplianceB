@@ -29,7 +29,7 @@ router.post("/", checkRole([Roles.ADMIN]), createClient);
 
 router.get("/", checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]), getClients);
 
-router.get("/:id", checkRole([Roles.ADMIN, Roles.ACCOUNTANT]), getClientById);
+router.get("/:id", checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]), getClientById);
 
 router.put("/:id", checkRole([Roles.ADMIN]), updateClient);
 
