@@ -1,6 +1,6 @@
 // src/controllers/monthlyCompliance.controller.ts
 import { Request, Response } from "express";
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { MonthlyCompliance } from "../models/monthlyCompliance.model";
 import { Roles } from "../commons/roles";
 import { Category } from "../models/category.model";
@@ -121,7 +121,6 @@ export const getMonthlyComplianceById = async (req: Request, res: Response) => {
   }
 };
 
-// Update record with role-based restrictions
 export const updateMonthlyCompliance = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -132,6 +131,7 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
       actualBill,
       billStatus,
       remarks,
+      workersAsPerData,
     } = req.body;
 
     const record = await MonthlyCompliance.findById(id).populate("client_id");
@@ -152,8 +152,9 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
     const clientCompanyId = clientData.company_id;
     const assignedEmployee = clientData.assignedTo;
 
-    // Role-based updates and change detection
-    if (role === Roles.EMPLOYEE) {
+    // ----------------- ROLE-BASED UPDATES -----------------
+    if (role === Roles.EMPLOYEE || role === Roles.ADMIN) {
+      // Update Data Status
       if (dataReceiveStatus && dataReceiveStatus !== record.dataReceiveStatus) {
         record.dataReceiveStatus = dataReceiveStatus;
         changes.push({
@@ -161,42 +162,65 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
           message: `Data Receive Status updated to '${dataReceiveStatus}' for ${clientName}`,
         });
       }
+
+      // Update Work Progress
       if (workProgress && workProgress !== record.workProgress) {
         record.workProgress = workProgress;
         changes.push({
           type: "Progress Updated",
           message: `Work Progress updated to '${workProgress}' for ${clientName}`,
         });
+      }
+
+      // Update Remarks (Admins and Employees)
+      if (remarks && remarks !== record.remarks) {
+        record.remarks = remarks;
+      }
+
+      // Update number of workers and calculate expectedBill based on category
+      if (workersAsPerData !== undefined) {
+        const workers = Number(workersAsPerData);
+        if (!isNaN(workers)) {
+          // Fetch active categories
+          const categories = await Category.find({ isActive: true });
+
+          // Find the category range that matches the number of workers
+          const matchedCategory = categories.find((cat) => {
+            const [minStr, maxStr] = cat.name.split("-");
+            const min = Number(minStr);
+            const max = Number(maxStr);
+
+            // Ensure min and max are valid numbers
+            if (isNaN(min) || isNaN(max)) return false;
+
+            return workers >= min && workers <= max;
+          });
+
+          if (matchedCategory) {
+            record.expectedBill = matchedCategory.price;
+            record.category_id =
+              matchedCategory._id as mongoose.Schema.Types.ObjectId;
+          }
+
+          record.workersAsPerData = workers;
+        }
+      }
+
+      // Admins can also update actualBill and billStatus
+      if (role === Roles.ADMIN) {
+        if (actualBill !== undefined && actualBill !== record.actualBill) {
+          record.actualBill = actualBill;
+        }
+        if (billStatus && billStatus !== record.billStatus) {
+          record.billStatus = billStatus;
+          changes.push({
+            type: "Bill Generated",
+            message: `Bill Status updated to '${billStatus}' for ${clientName}`,
+          });
+        }
       }
     } else if (role === Roles.ACCOUNTANT) {
-      if (expectedBill !== undefined && expectedBill !== record.expectedBill) {
-        record.expectedBill = expectedBill;
-      }
-      if (actualBill !== undefined && actualBill !== record.actualBill) {
-        record.actualBill = actualBill;
-      }
-      if (billStatus && billStatus !== record.billStatus) {
-        record.billStatus = billStatus;
-        changes.push({
-          type: "Bill Generated",
-          message: `Bill Status updated to '${billStatus}' for ${clientName}`,
-        });
-      }
-    } else if (role === Roles.ADMIN) {
-      if (dataReceiveStatus && dataReceiveStatus !== record.dataReceiveStatus) {
-        record.dataReceiveStatus = dataReceiveStatus;
-        changes.push({
-          type: "Data Received",
-          message: `Data Receive Status updated to '${dataReceiveStatus}' for ${clientName}`,
-        });
-      }
-      if (workProgress && workProgress !== record.workProgress) {
-        record.workProgress = workProgress;
-        changes.push({
-          type: "Progress Updated",
-          message: `Work Progress updated to '${workProgress}' for ${clientName}`,
-        });
-      }
+      // Accountants can only update bills
       if (expectedBill !== undefined && expectedBill !== record.expectedBill) {
         record.expectedBill = expectedBill;
       }
@@ -217,6 +241,7 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
       return res.status(403).json({ message: "Forbidden" });
     }
 
+    // ----------------- SAVE RECORD -----------------
     record.updatedBy = new mongoose.Types.ObjectId(
       req.user.id
     ) as unknown as mongoose.Schema.Types.ObjectId;
@@ -232,7 +257,7 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
       { _id: 1 }
     );
 
-    const employeeRecipients: mongoose.Types.ObjectId[] =
+    const employeeRecipients: Types.ObjectId[] =
       assignedEmployee && assignedEmployee.toString() !== req.user.id
         ? [assignedEmployee]
         : [];
@@ -248,24 +273,19 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
               },
               { _id: 1 }
             )
-          ).map((u) => u._id as mongoose.Types.ObjectId)
+          ).map((u) => u._id as Types.ObjectId)
         : [];
 
     // ----------------- SEND NOTIFICATIONS -----------------
     for (const change of changes) {
-      let recipients: mongoose.Types.ObjectId[] = [];
+      let recipients: Types.ObjectId[] = [];
 
-      // Admin always gets everything
-      recipients.push(
-        ...adminRecipients.map((u) => u._id as mongoose.Types.ObjectId)
-      );
+      recipients.push(...adminRecipients.map((u) => u._id as Types.ObjectId));
 
-      // Employee gets only bill updates
       if (change.type === "Bill Generated") {
         recipients.push(...employeeRecipients);
       }
 
-      // Accountant gets only when progress completed
       if (change.type === "Progress Updated" && workProgress === "Completed") {
         recipients.push(...accountantRecipients);
       }
