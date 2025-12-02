@@ -4,6 +4,7 @@ import {
   getNotificationsByRecipient,
   markAsRead,
   markAllAsRead,
+  getUnreadCount,
 } from "../controllers/notification.controller";
 
 import { authenticate } from "../middlewares/auth";
@@ -14,6 +15,13 @@ const router = Router();
 
 // All routes require authentication
 router.use(authenticate);
+
+router.get(
+  "/unreadCount/:userId",
+  checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]),
+  getUnreadCount
+);
+
 
 /**
  * CREATE a notification
