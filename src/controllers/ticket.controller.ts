@@ -94,28 +94,48 @@ export const getTicketById = async (req: Request, res: Response) => {
 export const updateTicket = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { status, assignedTo, comment } = req.body;
+    const {
+      title,
+      description,
+      priority,
+      status,
+      assignedTo,
+      clientId,
+      comment,
+    } = req.body;
 
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
     const ticket = await Ticket.findById(id);
     if (!ticket) return res.status(404).json({ message: "Ticket not found" });
 
-    // Admin can assign tickets
-    if (assignedTo && req.user.role === Roles.ADMIN) {
+    const isAdmin = req.user.role === Roles.ADMIN;
+    const isRaisedUser = ticket.raisedBy.toString() === req.user.id;
+    const isAssignedUser =
+      ticket.assignedTo && ticket.assignedTo.toString() === req.user.id;
+
+    // ---------- BASIC FIELD UPDATES (Admin or the user who raised it) ----------
+    if (isAdmin || isRaisedUser) {
+      if (title) ticket.title = title;
+      if (description) ticket.description = description;
+      if (priority) ticket.priority = priority;
+
+      // related client update
+      if (clientId) {
+        ticket.relatedClient = new mongoose.Types.ObjectId(clientId);
+      }
+    }
+
+    // ---------- ASSIGNMENT (Admin only) ----------
+    if (assignedTo && isAdmin) {
       ticket.assignedTo = new mongoose.Types.ObjectId(assignedTo);
     }
 
-    // Status update: only admins or assigned/raised user can update
+    // ---------- STATUS UPDATE (Admin, raisedBy, or assigned user) ----------
     if (status) {
-      if (
-        req.user.role === Roles.ADMIN ||
-        ticket.raisedBy.toString() === req.user.id ||
-        (ticket.assignedTo && ticket.assignedTo.toString() === req.user.id)
-      ) {
+      if (isAdmin || isRaisedUser || isAssignedUser) {
         ticket.status = status;
 
-        // mark resolved by
         if (status === "Resolved" || status === "Closed") {
           ticket.isResolvedBy = new mongoose.Types.ObjectId(req.user.id);
           ticket.resolvedAt = new Date();
@@ -125,7 +145,7 @@ export const updateTicket = async (req: Request, res: Response) => {
       }
     }
 
-    // Add comment
+    // ---------- ADD COMMENT ----------
     if (comment) {
       ticket.comments = ticket.comments || [];
       ticket.comments.push({
@@ -136,12 +156,17 @@ export const updateTicket = async (req: Request, res: Response) => {
     }
 
     await ticket.save();
-    res.status(200).json({ message: "Ticket updated", ticket });
+
+    res.status(200).json({
+      message: "Ticket updated",
+      ticket,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // ---------------- DELETE TICKET (optional, admin only) ----------------
 export const deleteTicket = async (req: Request, res: Response) => {
@@ -162,3 +187,35 @@ export const deleteTicket = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+export const getResolvedTickets = async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+
+    const isAdmin = req.user.role === Roles.ADMIN;
+
+    let filter: any = {
+      status: { $in: ["Resolved", "Closed"] },
+    };
+
+    // Admin → can view all resolved tickets
+    if (!isAdmin) {
+      filter.$or = [{ raisedBy: req.user.id }, { assignedTo: req.user.id }];
+    }
+
+    const tickets = await Ticket.find(filter)
+      .populate("raisedBy", "name email")
+      .populate("assignedTo", "name email")
+      .populate("relatedClient", "name")
+      .sort({ updatedAt: -1 });
+
+    res.status(200).json({
+      message: "Resolved tickets fetched",
+      tickets,
+    });
+  } catch (err) {
+    console.error("Get Resolved Tickets Error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+

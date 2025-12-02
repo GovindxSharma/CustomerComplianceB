@@ -6,6 +6,7 @@ import {
   getTicketById,
   updateTicket,
   deleteTicket,
+  getResolvedTickets,
 } from "../controllers/ticket.controller";
 
 import { authenticate } from "../middlewares/auth";
@@ -16,6 +17,12 @@ const router = Router();
 
 // All ticket routes require authentication
 router.use(authenticate);
+
+router.get(
+  "/resolved",
+  checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]),
+  getResolvedTickets
+);
 
 // Create Ticket → Admin + Accountant + Employee
 router.post(
