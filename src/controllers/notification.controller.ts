@@ -133,3 +133,21 @@ export const markAllAsRead = async (req: Request, res: Response) => {
     return res.status(500).json({ message: error.message });
   }
 };
+
+export const getUnreadCount = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+
+    const count = await Notification.countDocuments({
+      recipient_id: userId, // ✅ use recipient_id, not userId
+      isRead: false,
+    });
+
+    return res.status(200).json({ count });
+  } catch (error) {
+    console.error("Unread count error:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+
