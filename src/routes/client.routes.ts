@@ -31,7 +31,7 @@ router.get("/", checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]), getC
 
 router.get("/:id", checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]), getClientById);
 
-router.put("/:id", checkRole([Roles.ADMIN]), updateClient);
+router.put("/:id", checkRole([Roles.ADMIN, Roles.ACCOUNTANT]), updateClient);
 
 router.delete("/:id", checkRole([Roles.ADMIN]), deleteClient);
 

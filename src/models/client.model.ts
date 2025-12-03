@@ -15,6 +15,7 @@ export interface IClient extends Document {
   startMonth?: string;
   startYear?: number;
   isOverdue: boolean;
+  overdueAmount?: number;
   lastUpdatedBy?: mongoose.Schema.Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
@@ -44,6 +45,7 @@ const clientSchema = new Schema<IClient>(
     startMonth: { type: String },
     startYear: { type: Number },
     isOverdue: { type: Boolean, default: false },
+    overdueAmount: { type: Number , default: 0},
     lastUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
