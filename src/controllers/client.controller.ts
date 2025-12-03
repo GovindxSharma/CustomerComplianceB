@@ -199,17 +199,15 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
     if (!company_id)
       return res.status(400).json({ message: "company_id is required" });
 
-if (!req.user) {
-  return res.status(401).json({ message: "Unauthorized" });
-}
-const loggedUser = req.user;
-const isEmployee = loggedUser.role === "Employee";
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
+    const loggedUser = req.user;
+    const isEmployee = loggedUser.role === "Employee";
 
-    // Fetch clients of this company
     let clients = await Client.find({ company_id }).lean();
 
-    // If employee, filter by assignedTo
     if (isEmployee) {
       clients = clients.filter(
         (client) => client.assignedTo?.toString() === loggedUser.id.toString()
@@ -218,19 +216,19 @@ const isEmployee = loggedUser.role === "Employee";
 
     const response: any[] = [];
 
+    const monthStr = (m: number, y: number) => `${m}-${y}`;
+
     for (const client of clients) {
       const monthlyRecords = await MonthlyCompliance.find({
         client_id: client._id,
       }).lean();
 
-      // Assigned employee name
       let assignedName = "-";
       if (client.assignedTo) {
-        const user = await User.findById(client.assignedTo).lean();
-        if (user) assignedName = user.name;
+        const u = await User.findById(client.assignedTo).lean();
+        if (u) assignedName = u.name;
       }
 
-      // If no monthly records
       if (!monthlyRecords || monthlyRecords.length === 0) {
         response.push({
           id: client._id,
@@ -244,85 +242,119 @@ const isEmployee = loggedUser.role === "Employee";
         continue;
       }
 
-      // Sort oldest → newest
+      // Convert month/year to numbers & safely sort
       monthlyRecords.sort((a, b) => {
-        const aVal = Number(`${a.year}${String(a.month).padStart(2, "0")}`);
-        const bVal = Number(`${b.year}${String(b.month).padStart(2, "0")}`);
-        return aVal - bVal;
+        const mA = Number(a.month);
+        const yA = Number(a.year);
+        const mB = Number(b.month);
+        const yB = Number(b.year);
+        return yA === yB ? mA - mB : yA - yB;
       });
 
-      const monthStr = (m: number, y: number) => `${m}-${y}`;
+      // --------------------------------------------------------
+      // ✅ FIXED DATA LOGIC (With safe indexing + TS-safe checks)
+      // --------------------------------------------------------
 
-      // DATA STATUS
-      let targetData = monthlyRecords.find(
-        (rec) =>
-          rec.dataReceiveStatus !== "Data Received" ||
-          rec.workProgress !== "Completed"
-      );
-      if (!targetData) targetData = monthlyRecords[monthlyRecords.length - 1];
+      let dataStatus = "-";
 
-      const dataMonth = Number(targetData?.month ?? 0);
-      const dataYear = Number(targetData?.year ?? 0);
+      const last = monthlyRecords[monthlyRecords.length - 1] ?? null;
+      const secondLast =
+        monthlyRecords.length > 1
+          ? monthlyRecords[monthlyRecords.length - 2]
+          : null;
 
-      let dataStatus = "";
-      if (targetData?.dataReceiveStatus !== "Data Received") {
-        dataStatus = `Data Pending ${monthStr(dataMonth, dataYear)}`;
-      } else {
-        switch (targetData?.workProgress) {
-          case "Not Started":
-            dataStatus = `Data Progress Pending ${monthStr(
-              dataMonth,
-              dataYear
+      if (monthlyRecords.length === 1 && last) {
+        const r = last;
+        if (
+          r.dataReceiveStatus === "Data Received" &&
+          r.workProgress === "Completed"
+        ) {
+          dataStatus = `Data Complete ${monthStr(
+            Number(r.month),
+            Number(r.year)
+          )}`;
+        } else if (
+          r.dataReceiveStatus === "Data Received" &&
+          r.workProgress !== "Completed"
+        ) {
+          dataStatus = `Data Received ${monthStr(
+            Number(r.month),
+            Number(r.year)
+          )}`;
+        }
+      } else if (last) {
+        if (
+          last.dataReceiveStatus === "Data Received" &&
+          last.workProgress === "Completed"
+        ) {
+          dataStatus = `Data Complete ${monthStr(
+            Number(last.month),
+            Number(last.year)
+          )}`;
+        } else if (
+          last.dataReceiveStatus === "Data Received" &&
+          last.workProgress !== "Completed"
+        ) {
+          dataStatus = `Data Received ${monthStr(
+            Number(last.month),
+            Number(last.year)
+          )}`;
+        } else if (secondLast) {
+          if (
+            secondLast.dataReceiveStatus === "Data Received" &&
+            secondLast.workProgress === "Completed"
+          ) {
+            dataStatus = `Data Complete ${monthStr(
+              Number(secondLast.month),
+              Number(secondLast.year)
             )}`;
-            break;
-          case "In Progress":
-            dataStatus = `Data In Progress ${monthStr(dataMonth, dataYear)}`;
-            break;
-          case "Completed":
-            dataStatus = `Data Complete ${monthStr(dataMonth, dataYear)}`;
-            break;
-          default:
-            dataStatus = `Data Pending ${monthStr(dataMonth, dataYear)}`;
+          }
         }
       }
 
-      // BILL STATUS
+      // --------------------------------------------------------
+      // ✅ BILL STATUS (your logic — TS-safe)
+      // --------------------------------------------------------
       let billStatus = "-";
-      for (const record of monthlyRecords) {
-        const recMonth = Number(record.month);
-        const recYear = Number(record.year);
+
+      for (const r of monthlyRecords) {
+        if (!r) continue;
+
+        const recMonth = Number(r.month);
+        const recYear = Number(r.year);
 
         if (
-          record.dataReceiveStatus === "Data Received" &&
-          record.workProgress === "Completed"
+          r.dataReceiveStatus === "Data Received" &&
+          r.workProgress === "Completed"
         ) {
-          if (record.billStatus !== "Generated") {
+          if (r.billStatus !== "Generated") {
             billStatus = `Bill Pending ${monthStr(recMonth, recYear)}`;
             break;
           }
         }
       }
 
-      // Last generated if no pending bills
       if (billStatus === "-") {
-        const allGenerated = monthlyRecords.every(
-          (r) =>
+        const allGenerated = monthlyRecords.every((r) => {
+          if (!r) return false;
+          return (
             r.dataReceiveStatus === "Data Received" &&
             r.workProgress === "Completed" &&
             r.billStatus === "Generated"
-        );
+          );
+        });
 
-        if (allGenerated && monthlyRecords.length > 0) {
-          const last = monthlyRecords[monthlyRecords.length - 1];
+        if (allGenerated && last) {
           billStatus = `Bill Generated ${monthStr(
-            Number(last?.month ?? 0),
-            Number(last?.year ?? 0)
+            Number(last.month),
+            Number(last.year)
           )}`;
         }
-
       }
 
+      // --------------------------------------------------------
       // FINAL RESPONSE
+      // --------------------------------------------------------
       response.push({
         id: client._id,
         name: client.name,
@@ -341,6 +373,7 @@ const isEmployee = loggedUser.role === "Employee";
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 export const getOverdueClients = async (req: Request, res: Response) => {
