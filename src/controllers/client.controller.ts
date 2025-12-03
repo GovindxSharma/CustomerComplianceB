@@ -374,11 +374,11 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
   }
 };
 
-
-
 export const getOverdueClients = async (req: Request, res: Response) => {
   try {
-    const companyId = req.user!.company_id; // From auth middleware
+    const companyId = req.user!.company_id;
+    const userId = req.user!.id;
+    const role = req.user!.role; 
 
     if (!companyId) {
       return res.status(400).json({
@@ -386,10 +386,18 @@ export const getOverdueClients = async (req: Request, res: Response) => {
       });
     }
 
-    const overdueClients = await Client.find({
+    // Base query for all roles
+    const baseQuery: any = {
       company_id: companyId,
       isOverdue: true,
-    })
+    };
+
+    // If Employee → restrict to assigned clients
+    if (role === "Employee") {
+      baseQuery.assignedTo = userId;
+    }
+
+    const overdueClients = await Client.find(baseQuery)
       .populate("assignedTo", "name email")
       .populate("lastUpdatedBy", "name email")
       .sort({ updatedAt: -1 });
@@ -407,3 +415,4 @@ export const getOverdueClients = async (req: Request, res: Response) => {
     });
   }
 };
+
