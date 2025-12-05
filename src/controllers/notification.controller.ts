@@ -151,3 +151,25 @@ export const getUnreadCount = async (req: Request, res: Response) => {
 };
 
 
+export const deleteNotification = async (req: Request, res: Response) => {
+  try {
+    const { notification_id } = req.params;
+
+    const notifObj = toObjectId(notification_id);
+    if (!notifObj) {
+      return res.status(400).json({ message: "Invalid notification id." });
+    }
+
+    const deleted = await Notification.findByIdAndDelete(notifObj);
+
+    if (!deleted) {
+      return res.status(404).json({ message: "Notification not found." });
+    }
+
+    return res.status(200).json({ message: "Notification deleted successfully." });
+  } catch (error: any) {
+    console.error("Delete Notification Error:", error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
