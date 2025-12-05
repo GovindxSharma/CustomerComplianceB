@@ -5,6 +5,7 @@ import {
   markAsRead,
   markAllAsRead,
   getUnreadCount,
+  deleteNotification,
 } from "../controllers/notification.controller";
 
 import { authenticate } from "../middlewares/auth";
@@ -21,7 +22,6 @@ router.get(
   checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]),
   getUnreadCount
 );
-
 
 /**
  * CREATE a notification
@@ -60,5 +60,12 @@ router.put(
   checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]),
   markAllAsRead
 );
+
+router.delete(
+  "/:notification_id",
+  checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]),
+  deleteNotification
+);
+
 
 export default router;
