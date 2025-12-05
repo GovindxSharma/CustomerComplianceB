@@ -8,6 +8,7 @@ import monthlyComplianceRoutes from "./monthlyCompliance.routes"
 import notificationRoutes from "./notification.routes"
 import ticketRoutes from "./ticket.routes"
 import categoryRoutes from "./category.routes"
+import licenseRoutes from "./license.routes"
 
 const router = Router();
 
@@ -21,5 +22,6 @@ router.use("/monthly-compliance", monthlyComplianceRoutes);
 router.use("/notification", notificationRoutes)
 router.use("/ticket", ticketRoutes)
 router.use("/category", categoryRoutes)
+router.use("/license", licenseRoutes)
 
 export default router;
