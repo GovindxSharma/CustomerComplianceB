@@ -6,6 +6,8 @@ import {
   getMonthlyComplianceById,
   updateMonthlyCompliance,
   deleteMonthlyCompliance,
+  getDataReceived,
+  getDataComplete,
 } from "../controllers/monthlyCompliance.controller";
 import { checkRole } from "../middlewares/checkRole";
 import { Roles } from "../commons/roles";
@@ -15,6 +17,9 @@ const router = Router();
 
 // All routes require authentication
 router.use(authenticate);
+
+router.get("/data-received", checkRole([Roles.EMPLOYEE]), getDataReceived);
+router.get("/data-complete", checkRole([Roles.EMPLOYEE]), getDataComplete);
 
 // Create monthly compliance (Admin only)
 router.post("/", checkRole([Roles.ADMIN]), createMonthlyCompliance);
