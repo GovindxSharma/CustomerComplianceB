@@ -439,3 +439,48 @@ if (!employeeId) {
   }
 };
 
+// ✅ Accountant: Data Complete but Bill Pending
+export const getBillPending = async (req: Request, res: Response) => {
+  try {
+    const billPendingClients = await MonthlyCompliance.find({
+      dataReceiveStatus: "Data Received",
+      workProgress: "Completed",
+      billStatus: "Pending",
+    })
+      .populate(
+        "client_id",
+        "name contactPerson contactNumber email assignedTo"
+      )
+      .populate("category_id", "name")
+      .sort({ year: -1, month: -1 });
+
+    // Filter out any documents where client_id is null
+    const clients = billPendingClients
+      .filter((mc) => mc.client_id) // 🔹 skip null clients
+      .map((mc) => {
+        const client = mc.client_id as any;
+        const category = mc.category_id as any;
+
+        return {
+          clientId: client._id,
+          clientName: client.name,
+          contactPerson: client.contactPerson || "-",
+          contactNumber: client.contactNumber || "-",
+          email: client.email || "-",
+          month: mc.month,
+          year: mc.year,
+          category: category?.name || "-",
+          remarks: mc.remarks || "-",
+          billStatus: mc.billStatus,
+        };
+      });
+
+    return res.json({ clients });
+  } catch (error) {
+    console.error("Error fetching bill pending clients:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+
