@@ -345,3 +345,97 @@ export const generateNextMonthComplianceForAllClients = async (
     );
   }
 };
+
+// Tab 1: Data Received & Progress Pending
+export const getDataReceived = async (req: Request, res: Response) => {
+  try {
+const employeeId = req.user?.id;
+if (!employeeId) {
+  return res.status(401).json({ error: "Unauthorized" });
+}
+
+    const compliances = await MonthlyCompliance.find({
+      workProgress: "Not Started",
+      dataReceiveStatus: "Data Received",
+    })
+      .populate({
+        path: "client_id",
+        match: { assignedTo: employeeId },
+        select: "name contactPerson contactNumber email",
+      })
+      .lean();
+
+    const filtered = compliances
+      .filter((c) => c.client_id) // remove nulls
+      .map((c) => {
+        const client = c.client_id as any; // or a proper interface
+        return {
+          complianceId: c._id,
+          clientId: client._id,
+          clientName: client.name,
+          contactPerson: client.contactPerson,
+          contactNumber: client.contactNumber,
+          email: client.email,
+          month: c.month,
+          year: c.year,
+          remarks: c.remarks || "",
+          dataReceiveStatus: c.dataReceiveStatus,
+          workProgress: c.workProgress,
+        };
+      });
+
+
+    res.json({ clients: filtered });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// Tab 2: Data Complete
+export const getDataComplete = async (req: Request, res: Response) => {
+  try {
+const employeeId = req.user?.id;
+if (!employeeId) {
+  return res.status(401).json({ error: "Unauthorized" });
+}
+
+    const compliances = await MonthlyCompliance.find({
+      workProgress: "Completed",
+      dataReceiveStatus: "Data Received",
+    })
+      .populate({
+        path: "client_id",
+        match: { assignedTo: employeeId },
+        select: "name contactPerson contactNumber email",
+      })
+      .lean();
+
+    const filtered = compliances
+      .filter((c) => c.client_id) // remove nulls
+      .map((c) => {
+        const client = c.client_id as any; // or a proper interface
+        return {
+          complianceId: c._id,
+          clientId: client._id,
+          clientName: client.name,
+          contactPerson: client.contactPerson,
+          contactNumber: client.contactNumber,
+          email: client.email,
+          month: c.month,
+          year: c.year,
+          remarks: c.remarks || "",
+          dataReceiveStatus: c.dataReceiveStatus,
+          workProgress: c.workProgress,
+          billStatus: c.billStatus,
+        };
+      });
+
+
+    res.json({ clients: filtered });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
