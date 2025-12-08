@@ -8,7 +8,7 @@ export interface IPassword extends Document {
   username: string;
   password: string; // encrypted string
   addedBy: mongoose.Schema.Types.ObjectId;
-  updatedBy?: mongoose.Schema.Types.ObjectId;
+  updatedBy?: mongoose.Types.ObjectId;
   remarks?: string;
   lastUpdated?: Date;
   createdAt?: Date;
