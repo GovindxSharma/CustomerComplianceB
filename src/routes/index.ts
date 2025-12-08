@@ -9,6 +9,7 @@ import notificationRoutes from "./notification.routes"
 import ticketRoutes from "./ticket.routes"
 import categoryRoutes from "./category.routes"
 import licenseRoutes from "./license.routes"
+import passwordRoutes from "./password.routes"
 
 const router = Router();
 
@@ -23,5 +24,6 @@ router.use("/notification", notificationRoutes)
 router.use("/ticket", ticketRoutes)
 router.use("/category", categoryRoutes)
 router.use("/license", licenseRoutes)
+router.use("/password", passwordRoutes)
 
 export default router;
