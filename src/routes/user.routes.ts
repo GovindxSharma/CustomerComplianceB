@@ -39,9 +39,11 @@ router.get("/:id",
     getUserById);
 
 // Only Admin can update or delete user
-router.put("/:id",
-    checkRole([Roles.ADMIN]),
-    updateUser);
+router.put(
+  "/:id",
+  checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]),
+  updateUser
+);
 
 router.delete("/:id",
     checkRole([Roles.ADMIN]),
