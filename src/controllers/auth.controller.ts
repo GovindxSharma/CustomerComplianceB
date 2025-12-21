@@ -220,3 +220,84 @@ export const getDashboardStats = async (req: Request, res: Response) => {
   }
 };
 
+// ======================
+// CLIENT MONTHLY STATS (Active / Inactive)
+// GET /api/auth/client-monthly-stats
+// ======================
+export const getClientMonthlyStats = async (req: Request, res: Response) => {
+  try {
+    const company_id = req.user?.company_id;
+    if (!company_id)
+      return res.status(400).json({ message: "Company ID missing" });
+
+    const clients = await Client.find({ company_id });
+
+    const stats: Record<string, { new: number; inactive: number }> = {};
+
+    clients.forEach((client) => {
+      const month = client.startMonth || "Unknown";
+      if (!stats[month]) stats[month] = { new: 0, inactive: 0 };
+
+      if (client.status === "Active") stats[month].new += 1;
+      else if (client.status === "Inactive") stats[month].inactive += 1;
+    });
+
+    // ✅ TS-safe mapping
+    const result = Object.keys(stats).map((month) => ({
+      month,
+      new: stats[month]?.new || 0,
+      inactive: stats[month]?.inactive || 0,
+    }));
+
+    return res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    console.error("Client monthly stats error:", err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to load client stats" });
+  }
+};
+
+
+// ======================
+// REVENUE PER MONTH
+// GET /api/auth/revenue-monthly
+// ======================
+export const getRevenueMonthly = async (req: Request, res: Response) => {
+  try {
+    const company_id = req.user?.company_id;
+    if (!company_id)
+      return res.status(400).json({ message: "Company ID missing" });
+
+    // Step 1: Get all clients for this company
+    const clients = await Client.find({ company_id }, { _id: 1 }).lean();
+    const clientIds = clients.map((c) => c._id);
+
+    // Step 2: Get monthly compliance records for these clients
+    const records = await MonthlyCompliance.find({
+      client_id: { $in: clientIds },
+    }).lean();
+
+    // Step 3: Aggregate revenue by month
+    const revenueMap: Record<string, number> = {};
+    records.forEach((rec) => {
+      const month = rec.month || "Unknown";
+      if (!revenueMap[month]) revenueMap[month] = 0;
+      revenueMap[month] += rec.actualBill || 0;
+    });
+
+    // Step 4: Convert to array for frontend
+    const result = Object.keys(revenueMap).map((month) => ({
+      month,
+      revenue: revenueMap[month],
+    }));
+
+    return res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    console.error("Revenue monthly stats error:", err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to load revenue stats" });
+  }
+};
+
