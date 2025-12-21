@@ -60,11 +60,9 @@ export const logout = async (req: Request, res: Response) => {
 
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
-    // const { _id: userId, role, company_id } = req.user;
-
-    const userId = req.user?.id
-    const role = req.user?.role
-    const company_id = req.user?.company_id
+    const userId = req.user?.id;
+    const role = req.user?.role;
+    const company_id = req.user?.company_id;
 
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
@@ -73,11 +71,28 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     let stats: any = {};
 
     /* =========================
+       RESOLVE CLIENT IDS FIRST
+    ========================== */
+    let clientIds: any[] = [];
+
+    if (role === "Admin" || role === "Accountant") {
+      clientIds = await Client.find({ company_id }, { _id: 1 }).lean();
+    } else if (role === "Employee") {
+      clientIds = await Client.find(
+        { company_id, assignedTo: userId },
+        { _id: 1 }
+      ).lean();
+    }
+
+    const clientIdList = clientIds.map((c) => c._id);
+
+    /* =========================
        TOTAL CLIENTS
     ========================== */
-    stats.totalClients = await Client.countDocuments({
-      company_id,
-    });
+    stats.totalClients =
+      role === "Admin" || role === "Accountant"
+        ? clientIdList.length
+        : clientIdList.length;
 
     /* =========================
        COMPLIANCE TRACKER
@@ -85,13 +100,14 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     if (role === "Admin" || role === "Accountant") {
       stats.complianceTracker = await Client.countDocuments({
         company_id,
-        status : "Active",
+        status: "Active",
         isOverdue: false,
       });
     } else {
       stats.complianceTracker = await Client.countDocuments({
-        company_id,
-        assignedTo: userId,
+        _id: { $in: clientIdList },
+        status: "Active",
+        isOverdue: false,
       });
     }
 
@@ -131,9 +147,8 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       });
     } else {
       stats.overdueClients = await Client.countDocuments({
-        company_id,
+        _id: { $in: clientIdList },
         isOverdue: true,
-        assignedTo: userId,
       });
     }
 
@@ -141,18 +156,10 @@ export const getDashboardStats = async (req: Request, res: Response) => {
        PASSWORDS
     ========================== */
     if (role === "Admin" || role === "Accountant") {
-      stats.passwords = await Password.countDocuments({
-        company_id,
-      });
+      stats.passwords = await Password.countDocuments({ company_id });
     } else {
-      const assignedClientIds = await Client.find(
-        { company_id, assignedTo: userId },
-        { _id: 1 }
-      );
-
       stats.passwords = await Password.countDocuments({
-        company_id,
-        client_id: { $in: assignedClientIds },
+        client_id: { $in: clientIdList },
       });
     }
 
@@ -160,39 +167,32 @@ export const getDashboardStats = async (req: Request, res: Response) => {
        LICENSE TRACKER
     ========================== */
     if (role === "Admin" || role === "Accountant") {
-      stats.licenses = await License.countDocuments({
-        company_id,
-      });
+      stats.licenses = await License.countDocuments({ company_id });
     } else {
-      const assignedClientIds = await Client.find(
-        { company_id, assignedTo: userId },
-        { _id: 1 }
-      );
-
       stats.licenses = await License.countDocuments({
-        company_id,
-        client_id: { $in: assignedClientIds },
+        client_id: { $in: clientIdList },
       });
     }
 
     /* =========================
-       BILL PENDING
+       BILL PENDING (ACCOUNTANT)
     ========================== */
     if (role === "Accountant") {
       stats.billPending = await MonthlyCompliance.countDocuments({
-        company_id,
+        client_id: { $in: clientIdList },
         workProgress: "Completed",
         billStatus: "Pending",
+        // month: currentMonth,
+        // year: currentYear,
       });
     }
 
     /* =========================
-       DATA RECEIVED (EMPLOYEE)
+       DATA RECEIVED / COMPLETE (EMPLOYEE)
     ========================== */
     if (role === "Employee") {
       stats.dataReceived = await MonthlyCompliance.countDocuments({
-        company_id,
-        assignedTo: userId,
+        client_id: { $in: clientIdList },
         dataReceiveStatus: "Data Received",
         workProgress: { $ne: "Completed" },
         month: currentMonth,
@@ -200,8 +200,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       });
 
       stats.dataComplete = await MonthlyCompliance.countDocuments({
-        company_id,
-        assignedTo: userId,
+        client_id: { $in: clientIdList },
         workProgress: "Completed",
         month: currentMonth,
         year: currentYear,
@@ -214,9 +213,10 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Dashboard stats error:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to load dashboard stats",
     });
   }
 };
+
