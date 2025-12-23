@@ -196,165 +196,165 @@ export const deleteClient = async (req: Request, res: Response) => {
 export const getClientsWithCompliance = async (req: Request, res: Response) => {
   try {
     const { company_id } = req.query;
+
     if (!company_id)
       return res.status(400).json({ message: "company_id is required" });
 
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
     const loggedUser = req.user;
     const isEmployee = loggedUser.role === "Employee";
 
+    // ------------------------------------------------
+    // 1️⃣ Fetch clients
+    // ------------------------------------------------
     let clients = await Client.find({ company_id }).lean();
 
     if (isEmployee) {
       clients = clients.filter(
-        (client) => client.assignedTo?.toString() === loggedUser.id.toString()
+        (c) => c.assignedTo?.toString() === loggedUser.id.toString()
       );
     }
 
-    const response: any[] = [];
+    if (clients.length === 0) {
+      return res.status(200).json({ clients: [] });
+    }
 
+    const clientIds = clients.map((c) => c._id);
+
+    // ------------------------------------------------
+    // 2️⃣ Fetch all monthly compliances (NO N+1)
+    // ------------------------------------------------
+    const allMonthly = await MonthlyCompliance.find({
+      client_id: { $in: clientIds },
+    }).lean();
+
+    const monthlyMap = new Map<string, any[]>();
+    for (const rec of allMonthly) {
+      const key = rec.client_id.toString();
+      if (!monthlyMap.has(key)) monthlyMap.set(key, []);
+      monthlyMap.get(key)!.push(rec);
+    }
+
+    // ------------------------------------------------
+    // 3️⃣ Fetch assigned users
+    // ------------------------------------------------
+    const userIds = clients.map((c) => c.assignedTo).filter(Boolean);
+
+    const users = await User.find({ _id: { $in: userIds } })
+      .select("name")
+      .lean();
+
+    const userMap = new Map(users.map((u) => [u._id.toString(), u.name]));
+
+    // ------------------------------------------------
+    // Helpers
+    // ------------------------------------------------
+    const normalize = (v?: string) => v?.trim().toLowerCase();
     const monthStr = (m: number, y: number) => `${m}-${y}`;
 
+    const response: any[] = [];
+
+    // ------------------------------------------------
+    // 4️⃣ Build response per client
+    // ------------------------------------------------
     for (const client of clients) {
-      const monthlyRecords = await MonthlyCompliance.find({
-        client_id: client._id,
-      }).lean();
+      const monthlyRecords = monthlyMap.get(client._id.toString()) || [];
 
-      let assignedName = "-";
-      if (client.assignedTo) {
-        const u = await User.findById(client.assignedTo).lean();
-        if (u) assignedName = u.name;
-      }
+      const assignedName = client.assignedTo
+        ? userMap.get(client.assignedTo.toString()) || "-"
+        : "-";
 
-      if (!monthlyRecords || monthlyRecords.length === 0) {
+      if (monthlyRecords.length === 0) {
         response.push({
           id: client._id,
           name: client.name,
           site: client.site || "-",
           assignedTo: assignedName,
           clientStatus: client.status,
-          lastDataStatus: "Pending -",
+          businessUnit: client.businessUnit || "-",
+          lastDataStatus: "-",
           lastBillStatus: "-",
         });
         continue;
       }
 
-      // Convert month/year to numbers & safely sort
+      // ------------------------------------------------
+      // ✅ CRITICAL FIX: sort newest → oldest
+      // ------------------------------------------------
       monthlyRecords.sort((a, b) => {
-        const mA = Number(a.month);
-        const yA = Number(a.year);
-        const mB = Number(b.month);
-        const yB = Number(b.year);
-        return yA === yB ? mA - mB : yA - yB;
+        const yDiff = Number(b.year) - Number(a.year);
+        if (yDiff !== 0) return yDiff;
+        return Number(b.month) - Number(a.month);
       });
 
-      // --------------------------------------------------------
-      // ✅ FIXED DATA LOGIC (With safe indexing + TS-safe checks)
-      // --------------------------------------------------------
-
+      // ------------------------------------------------
+      // ✅ DATA STATUS (FIXED LOGIC)
+      // ------------------------------------------------
       let dataStatus = "-";
 
-      const last = monthlyRecords[monthlyRecords.length - 1] ?? null;
-      const secondLast =
-        monthlyRecords.length > 1
-          ? monthlyRecords[monthlyRecords.length - 2]
-          : null;
+      // Most recent month where data is received
+      const latestReceived = monthlyRecords.find(
+        (r) => normalize(r.dataReceiveStatus) === "data received"
+      );
 
-      if (monthlyRecords.length === 1 && last) {
-        const r = last;
-        if (
-          r.dataReceiveStatus === "Data Received" &&
-          r.workProgress === "Completed"
-        ) {
+      if (latestReceived) {
+        if (latestReceived.workProgress === "Completed") {
           dataStatus = `Data Complete ${monthStr(
-            Number(r.month),
-            Number(r.year)
+            Number(latestReceived.month),
+            Number(latestReceived.year)
           )}`;
-        } else if (
-          r.dataReceiveStatus === "Data Received" &&
-          r.workProgress !== "Completed"
-        ) {
+        } else {
           dataStatus = `Data Received ${monthStr(
-            Number(r.month),
-            Number(r.year)
+            Number(latestReceived.month),
+            Number(latestReceived.year)
           )}`;
-        }
-      } else if (last) {
-        if (
-          last.dataReceiveStatus === "Data Received" &&
-          last.workProgress === "Completed"
-        ) {
-          dataStatus = `Data Complete ${monthStr(
-            Number(last.month),
-            Number(last.year)
-          )}`;
-        } else if (
-          last.dataReceiveStatus === "Data Received" &&
-          last.workProgress !== "Completed"
-        ) {
-          dataStatus = `Data Received ${monthStr(
-            Number(last.month),
-            Number(last.year)
-          )}`;
-        } else if (secondLast) {
-          if (
-            secondLast.dataReceiveStatus === "Data Received" &&
-            secondLast.workProgress === "Completed"
-          ) {
-            dataStatus = `Data Complete ${monthStr(
-              Number(secondLast.month),
-              Number(secondLast.year)
-            )}`;
-          }
         }
       }
 
-      // --------------------------------------------------------
-      // ✅ BILL STATUS (your logic — TS-safe)
-      // --------------------------------------------------------
+      // ------------------------------------------------
+      // ✅ BILL STATUS (ALSO SAFE WITH FUTURE MONTHS)
+      // ------------------------------------------------
       let billStatus = "-";
 
-      for (const r of monthlyRecords) {
-        if (!r) continue;
+      const pendingBill = monthlyRecords.find(
+        (r) =>
+          normalize(r.dataReceiveStatus) === "data received" &&
+          r.workProgress === "Completed" &&
+          r.billStatus !== "Generated"
+      );
 
-        const recMonth = Number(r.month);
-        const recYear = Number(r.year);
+      if (pendingBill) {
+        billStatus = `Bill Pending ${monthStr(
+          Number(pendingBill.month),
+          Number(pendingBill.year)
+        )}`;
+      } else {
+        const lastCompleted = monthlyRecords.find(
+          (r) =>
+            normalize(r.dataReceiveStatus) === "data received" &&
+            r.workProgress === "Completed"
+        );
 
         if (
-          r.dataReceiveStatus === "Data Received" &&
-          r.workProgress === "Completed"
+          lastCompleted &&
+          monthlyRecords.every(
+            (r) =>
+              normalize(r.dataReceiveStatus) === "data received" &&
+              r.workProgress === "Completed" &&
+              r.billStatus === "Generated"
+          )
         ) {
-          if (r.billStatus !== "Generated") {
-            billStatus = `Bill Pending ${monthStr(recMonth, recYear)}`;
-            break;
-          }
-        }
-      }
-
-      if (billStatus === "-") {
-        const allGenerated = monthlyRecords.every((r) => {
-          if (!r) return false;
-          return (
-            r.dataReceiveStatus === "Data Received" &&
-            r.workProgress === "Completed" &&
-            r.billStatus === "Generated"
-          );
-        });
-
-        if (allGenerated && last) {
           billStatus = `Bill Generated ${monthStr(
-            Number(last.month),
-            Number(last.year)
+            Number(lastCompleted.month),
+            Number(lastCompleted.year)
           )}`;
         }
       }
 
-      // --------------------------------------------------------
-      // FINAL RESPONSE
-      // --------------------------------------------------------
+      // ------------------------------------------------
+      // FINAL RESPONSE OBJECT
+      // ------------------------------------------------
       response.push({
         id: client._id,
         name: client.name,
