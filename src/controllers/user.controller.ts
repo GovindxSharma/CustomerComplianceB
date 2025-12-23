@@ -135,7 +135,7 @@ export const getEmployeesByCompany = async (req: Request, res: Response) => {
     // Find users with EMPLOYEE role, same company, and active
     const employees = await User.find({
       company_id: companyId,
-      role: Roles.EMPLOYEE,
+      role: [Roles.EMPLOYEE, Roles.ACCOUNTANT],
       isActive: true,
     })
       .select("_id name email role user_id")   // include user_id in result
