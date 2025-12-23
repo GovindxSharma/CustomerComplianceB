@@ -4,12 +4,11 @@ import mongoose from "mongoose";
 export const generateMonthlyComplianceRecordsForClient = async (
   clientId: mongoose.Types.ObjectId,
   startMonth: number,
-  startYear: number,
+  startYear: number
 ) => {
   try {
-    const records = [];
     const now = new Date();
-    const currentMonth = now.getMonth() + 1; // JS months 0-11
+    const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
 
     let year = startYear;
@@ -19,14 +18,25 @@ export const generateMonthlyComplianceRecordsForClient = async (
       year < currentYear ||
       (year === currentYear && month <= currentMonth)
     ) {
-      records.push({
-        client_id: clientId,
-        month: month.toString().padStart(2, "0"),
-        year,
-        category_id: null, // optional
-        dataReceiveStatus: "Not Received",
-        workProgress: "Not Started",
-      });
+      await MonthlyCompliance.updateOne(
+        {
+          client_id: clientId,
+          month: month.toString().padStart(2, "0"),
+          year,
+        },
+        {
+          $setOnInsert: {
+            client_id: clientId,
+            month: month.toString().padStart(2, "0"),
+            year,
+            category_id: null,
+            dataReceiveStatus: "Not Received",
+            workProgress: "Not Started",
+            billStatus: "Pending",
+          },
+        },
+        { upsert: true }
+      );
 
       month++;
       if (month > 12) {
@@ -35,21 +45,10 @@ export const generateMonthlyComplianceRecordsForClient = async (
       }
     }
 
-    console.log("Generated monthly compliance records:", records);
-
-    if (records.length > 0) {
-      try {
-        const result = await MonthlyCompliance.insertMany(records, {
-          ordered: true,
-          rawResult: true,
-        });
-        console.log("Insert result:", result);
-        console.log(`✅ ${records.length} monthly compliance records created`);
-      } catch (err) {
-        console.error("❌ Failed to create monthly compliance records:", err);
-      }
-    }
-
+    console.log(
+      "✅ Monthly compliance backfill completed for client:",
+      clientId
+    );
   } catch (err) {
     console.error(
       "❌ Error in generateMonthlyComplianceRecordsForClient:",

@@ -1,16 +1,17 @@
-import "./config"; 
+import "./config";
 import express from "express";
 import mongoose from "mongoose";
 import routes from "./routes";
 import cors from "cors";
 import "./models/category.model";
+import { monthlyComplianceCron } from "./cron/montlyCompliance.cron";
 
 const app = express();
 
-// CORS setup with env-based origin
+// CORS setup
 app.use(
   cors({
-    origin: process.env.FRONTEND_ORIGIN?.split(",") || "*", // supports multiple origins if comma-separated
+    origin: process.env.FRONTEND_ORIGIN?.split(",") || "*",
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   })
@@ -21,7 +22,10 @@ app.use(express.json());
 // MongoDB Connection
 mongoose
   .connect(process.env.MONGO_URI!)
-  .then(() => console.log("✅ MongoDB connected"))
+  .then(() => {
+    monthlyComplianceCron();
+    console.log("✅ MongoDB connected");
+  })
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
 // Routes

@@ -325,26 +325,40 @@ export const deleteMonthlyCompliance = async (req: Request, res: Response) => {
 };
 
 // Cron-ready: generate next month records for all clients
-export const generateNextMonthComplianceForAllClients = async (
-  categories: mongoose.Types.ObjectId[],
-  getClients: () => Promise<any[]>
+export const generateNextMonthComplianceForClient = async (
+  clientId: mongoose.Types.ObjectId
 ) => {
-  const clients = await getClients();
-
   const today = new Date();
-  const nextMonth = today.getMonth() + 2; // JS months: 0-11
-  const year = nextMonth > 12 ? today.getFullYear() + 1 : today.getFullYear();
-  const month = nextMonth > 12 ? 1 : nextMonth;
 
-  for (const client of clients) {
-    await generateMonthlyComplianceForClient(
-      client._id,
-      month,
-      year,
-      categories
-    );
+  let month = today.getMonth() + 2; // next month
+  let year = today.getFullYear();
+
+  if (month > 12) {
+    month = 1;
+    year += 1;
   }
+
+  await MonthlyCompliance.updateOne(
+    {
+      client_id: clientId,
+      month: month.toString().padStart(2, "0"),
+      year,
+    },
+    {
+      $setOnInsert: {
+        client_id: clientId,
+        month: month.toString().padStart(2, "0"),
+        year,
+        category_id: null,
+        dataReceiveStatus: "Not Received",
+        workProgress: "Not Started",
+        billStatus: "Pending",
+      },
+    },
+    { upsert: true }
+  );
 };
+
 
 // Tab 1: Data Received & Progress Pending
 export const getDataReceived = async (req: Request, res: Response) => {
