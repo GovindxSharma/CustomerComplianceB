@@ -49,17 +49,19 @@ export const generateMonthlyComplianceForClient = async (
 // Create / add a new monthly compliance manually (Admin only)
 export const createMonthlyCompliance = async (req: Request, res: Response) => {
   try {
-    const { client_id, month, year, category_id } = req.body;
-    if (!client_id || !month || !year || !category_id) {
+    const { client_id, month, year} = req.body;
+    if (!client_id || !month || !year) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    const record = await MonthlyCompliance.create({
-      client_id,
-      month,
-      year,
-      category_id,
-    });
+   const record = await MonthlyCompliance.create({
+     client_id,
+     month: month.toString().padStart(2, "0"),
+     year,
+     category_id: null,
+     dataReceiveStatus: "Not Received",
+     workProgress: "Not Started",
+   });
     res.status(201).json({ message: "Monthly compliance created", record });
   } catch (err) {
     console.error(err);
