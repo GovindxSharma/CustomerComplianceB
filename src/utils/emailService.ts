@@ -1,83 +1,46 @@
-import nodemailer from "nodemailer";
-import path from "path";
+import { Resend } from "resend";
 
-interface EmailAttachment {
-  filename: string;
-  path: string;
-  cid?: string; // optional — only needed if embedding inline
-}
-
-interface SendEmailOptions {
-  to: string;
-  subject: string;
-  text?: string;
-  html?: string;
-  attachments?: EmailAttachment[];
-}
-
-const createTransporter = () => {
-  const host = process.env.EMAIL_HOST;
-  const port = Number(process.env.EMAIL_PORT);
-  const secure = process.env.EMAIL_SECURE === "true";
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASS;
-
-  if (!host || !port || !user || !pass) {
-    console.error("❌ Email env variables not set correctly:", {
-      host,
-      port,
-      user,
-      pass: pass ? "*****" : undefined,
-    });
-    throw new Error("Email environment variables are missing!");
-  }
-
-  console.log("📧 Creating email transporter:", { host, port, secure });
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
-    pool: true,
-    maxConnections: 5,
-    maxMessages: 100, 
-  });
-};
+const resend = new Resend(process.env.RESEND_API_KEY!);
 
 export const sendEmail = async ({
   to,
   subject,
   text,
   html,
-  attachments = [],
-}: SendEmailOptions) => {
-  try {
-    const transporter = createTransporter();
+  attachments,
+}: {
+  to: string;
+  subject: string;
+  text?: string;
+  html?: string;
+  attachments?: {
+    filename: string;
+    content: Buffer;
+  }[];
+}) => {
+  const emailPayload: any = {
+    from:
+      process.env.RESEND_FROM ??
+      "Customer Compliance Services <onboarding@resend.dev>",
+    to,
+    subject,
+  };
 
-    // normalize attachments (if paths are relative)
-    const normalizedAttachments = attachments.map((att) => ({
-      ...att,
-      path: path.resolve(att.path),
-    }));
-
-    const mailOptions = {
-      from: `"Customer Compliance Services" <${process.env.EMAIL_USER}>`,
-      to,
-      subject,
-      text,
-      html,
-      ...(normalizedAttachments.length > 0 && {
-        attachments: normalizedAttachments,
-      }),
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-
-    console.log("✅ Email sent successfully! Message ID:", info.messageId);
-    return info;
-  } catch (err) {
-    console.error("❌ Error sending email:", err);
-    throw err;
+  // ✅ ONLY add one content type
+  if (html) {
+    emailPayload.html = html;
+  } else if (text) {
+    emailPayload.text = text;
+  } else {
+    throw new Error("Either html or text must be provided");
   }
+
+  // ✅ Attachments only if present
+  if (attachments && attachments.length > 0) {
+    emailPayload.attachments = attachments;
+  }
+
+  const response = await resend.emails.send(emailPayload);
+
+  return response;
 };
