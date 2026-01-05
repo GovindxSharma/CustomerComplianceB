@@ -364,7 +364,17 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
         businessUnit: client.businessUnit || "-",
         lastDataStatus: dataStatus,
         lastBillStatus: billStatus,
+
+        // 🔥 ADD THIS
+        monthlyCompliances: monthlyRecords.map((r) => ({
+          month: r.month,
+          year: r.year,
+          dataReceiveStatus: r.dataReceiveStatus,
+          workProgress: r.workProgress,
+          billStatus: r.billStatus,
+        })),
       });
+
     }
 
     res.status(200).json({ clients: response });
