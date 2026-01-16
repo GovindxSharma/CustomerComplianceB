@@ -31,7 +31,7 @@ export const createClient = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Required fields missing" });
     }
 
-    const existing = await Client.findOne({ email, company_id });
+    const existing = await Client.findOne({ name, company_id });
     if (existing) {
       return res
         .status(400)
