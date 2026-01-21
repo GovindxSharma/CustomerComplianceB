@@ -11,7 +11,7 @@ import { License } from "../models/license.model";
 export const login = async (req: Request, res: Response) => {
     try {
       const JWT_SECRET = process.env.JWT_SECRET!;
-        const JWT_EXPIRES_IN = "1h";
+        const JWT_EXPIRES_IN = "12h";
         
     const { identifier, password } = req.body; // identifier can be email or user_id
 
