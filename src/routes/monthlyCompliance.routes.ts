@@ -23,7 +23,7 @@ router.get("/data-received", checkRole([Roles.EMPLOYEE]), getDataReceived);
 
 router.get("/data-complete", checkRole([Roles.EMPLOYEE]), getDataComplete);
 
-router.get("/bill-pending", checkRole([Roles.ACCOUNTANT]), getBillPending);
+router.get("/bill-pending", checkRole([Roles.ACCOUNTANT, Roles.ADMIN]), getBillPending);
 
 // Create monthly compliance (Admin only)
 router.post("/", checkRole([Roles.ADMIN]), createMonthlyCompliance);

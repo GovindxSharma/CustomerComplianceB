@@ -80,7 +80,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     } else if (role === "Employee") {
       clientIds = await Client.find(
         { company_id, assignedTo: userId },
-        { _id: 1 }
+        { _id: 1 },
       ).lean();
     }
 
@@ -175,9 +175,9 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     }
 
     /* =========================
-       BILL PENDING (ACCOUNTANT)
-    ========================== */
-    if (role === "Accountant") {
+   BILL PENDING (ADMIN + ACCOUNTANT)
+========================== */
+    if (role === "Admin" || role === "Accountant") {
       stats.billPending = await MonthlyCompliance.countDocuments({
         client_id: { $in: clientIdList },
         workProgress: "Completed",
