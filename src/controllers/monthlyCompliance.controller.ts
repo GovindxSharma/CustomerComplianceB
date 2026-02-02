@@ -459,7 +459,7 @@ if (!employeeId) {
 export const getBillPending = async (req: Request, res: Response) => {
   try {
     const billPendingClients = await MonthlyCompliance.find({
-      dataReceiveStatus: "Data Received",
+      // dataReceiveStatus: "Data Received",
       workProgress: "Completed",
       billStatus: "Pending",
     })
