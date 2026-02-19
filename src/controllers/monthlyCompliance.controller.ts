@@ -70,16 +70,53 @@ export const createMonthlyCompliance = async (req: Request, res: Response) => {
 };
 
 // Get all records for a client
+// export const getMonthlyComplianceByClient = async (
+//   req: Request,
+//   res: Response
+// ) => {
+//   try {
+//     const { clientId } = req.params;
+//     const loggedUser = req.user; // comes from auth middleware
+//     if (!loggedUser) return res.status(401).json({ message: "Unauthorized" });
+
+//     const client = await Client.findById(clientId);
+//     if (!client) return res.status(404).json({ message: "Client not found" });
+
+//     // ---------------- ROLE-BASED ACCESS ----------------
+//     if (
+//       loggedUser.role === Roles.EMPLOYEE &&
+//       client.assignedTo?.toString() !== loggedUser.id.toString()
+//     ) {
+//       return res.status(403).json({ message: "Forbidden" });
+//     }
+
+//     // Fetch monthly compliance
+//     const records = await MonthlyCompliance.find({
+//       client_id: clientId,
+//     }).populate({
+//       path: "category_id",
+//       select: "name",
+//     });
+
+//     res.status(200).json(records);
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
 export const getMonthlyComplianceByClient = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   try {
     const { clientId } = req.params;
-    const loggedUser = req.user; // comes from auth middleware
+    const { month, year, dataStatus, workProgress, billStatus } = req.query;
+
+    const loggedUser = req.user;
     if (!loggedUser) return res.status(401).json({ message: "Unauthorized" });
 
-    const client = await Client.findById(clientId);
+    const client = await Client.findById(clientId).lean();
     if (!client) return res.status(404).json({ message: "Client not found" });
 
     // ---------------- ROLE-BASED ACCESS ----------------
@@ -90,22 +127,30 @@ export const getMonthlyComplianceByClient = async (
       return res.status(403).json({ message: "Forbidden" });
     }
 
-    // Fetch monthly compliance
-    const records = await MonthlyCompliance.find({
-      client_id: clientId,
-    }).populate({
-      path: "category_id",
-      select: "name",
-    });
+    // ---------------- BUILD FILTER ----------------
+    const filter: any = { client_id: clientId };
 
-    res.status(200).json(records);
+    if (month) filter.month = month;
+    if (year) filter.year = Number(year);
+    if (dataStatus) filter.dataReceiveStatus = dataStatus;
+    if (workProgress) filter.workProgress = workProgress;
+    if (billStatus) filter.billStatus = billStatus;
+
+    // ---------------- FETCH RECORDS ----------------
+    const records = await MonthlyCompliance.find(filter)
+      .populate({
+        path: "category_id",
+        select: "name",
+      })
+      .sort({ year: -1, month: -1 }) // newest → oldest
+      .lean();
+
+    return res.status(200).json(records);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
-
-
 
 // Get a single record by ID
 export const getMonthlyComplianceById = async (req: Request, res: Response) => {
