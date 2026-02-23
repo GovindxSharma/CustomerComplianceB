@@ -101,13 +101,13 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       stats.complianceTracker = await Client.countDocuments({
         company_id,
         status: "Active",
-        isOverdue: false,
+        // isOverdue: false,
       });
     } else {
       stats.complianceTracker = await Client.countDocuments({
         _id: { $in: clientIdList },
         status: "Active",
-        isOverdue: false,
+        // isOverdue: false,
       });
     }
 
