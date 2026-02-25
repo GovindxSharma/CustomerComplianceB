@@ -1,55 +1,56 @@
 import { Request, Response } from "express";
 import { sendEmail } from "../utils/emailService";
-import { clientWelcomeEmail } from "../commons/emailContents";
-import fs from "fs";
 
-export const sendWelcomeEmailController = async (
-  req: Request,
-  res: Response
-) => {
+export const sendEmailController = async (req: Request, res: Response) => {
   try {
-    const { contactPerson, companyName, email } = req.body;
-    const files = req.files as Express.Multer.File[];
+    const { to, subject, html, text } = req.body;
+    const files = req.files as Express.Multer.File[] | undefined;
 
-    if (!email || !contactPerson || !companyName) {
-      return res.status(400).json({ message: "Missing required fields" });
+    if (!to || !subject) {
+      return res.status(400).json({
+        message: "to and subject are required",
+      });
     }
 
-    // ✅ Convert files to Resend-compatible attachments
+    if (!html && !text) {
+      return res.status(400).json({
+        message: "Either html or text content must be provided",
+      });
+    }
+
+    // ✅ Optional attachments (memory storage)
     const attachments =
       files?.map((file) => ({
         filename: file.originalname,
-        content: fs.readFileSync(file.path), // 🔥 IMPORTANT
+        content: file.buffer,
+        contentType: file.mimetype,
       })) ?? [];
 
-    const htmlContent = clientWelcomeEmail(contactPerson, companyName);
+    // Respond immediately (non-blocking UX)
+    res.status(200).json({
+      message: "Email queued for sending",
+    });
 
-    // ✅ Respond immediately (non-blocking)
-    res.status(200).json({ message: "Email queued for sending" });
-
-    // 🚀 Fire-and-forget
+    // Fire & forget
     sendEmail({
-      to: email,
-      subject: "Welcome to CCS - Contractor Compliance Services",
-      html: htmlContent,
+      to,
+      subject,
+      html,
+      text,
       ...(attachments.length > 0 && { attachments }),
     })
       .then(() => {
         console.log(
-          `📨 Email sent to ${email} with ${attachments.length} attachments`
+          `📨 Email sent to ${to} with ${attachments.length} attachment(s)`,
         );
       })
-      .catch((error) => {
-        console.error("❌ Error sending email in background:", error);
-      })
-      .finally(() => {
-        // 🧹 cleanup temp files
-        files?.forEach((file) => {
-          fs.unlink(file.path, () => {});
-        });
+      .catch((error: any) => {
+        console.error("❌ Email sending failed:", error);
       });
   } catch (error) {
-    console.error("❌ Error handling email request:", error);
-    res.status(500).json({ message: "Error initiating welcome email" });
+    console.error("❌ Controller error:", error);
+    res.status(500).json({
+      message: "Internal server error",
+    });
   }
 };

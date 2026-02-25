@@ -1,16 +1,20 @@
 import express from "express";
-import { sendWelcomeEmailController } from "../controllers/email.controller";
+import { sendEmailController } from "../controllers/email.controller";
 import { authenticate } from "../middlewares/auth";
-import { upload } from "../middlewares/upload";
-
+import multer from "multer";
 
 const router = express.Router();
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+});
+
 
 router.post(
   "/send-welcome",
   authenticate,
   upload.array("attachments"), // "attachments" is the key in form-data
-  sendWelcomeEmailController
+  sendEmailController
 );
 
 export default router;
