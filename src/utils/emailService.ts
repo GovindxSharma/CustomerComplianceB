@@ -1,14 +1,14 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
-export const sendEmail = async ({
-  to,
-  subject,
-  text,
-  html,
-  attachments,
-}: {
+export interface SendEmailOptions {
   to: string;
   subject: string;
   text?: string;
@@ -16,31 +16,30 @@ export const sendEmail = async ({
   attachments?: {
     filename: string;
     content: Buffer;
+    contentType?: string;
   }[];
-}) => {
-  const emailPayload: any = {
-    from:
-      process.env.RESEND_FROM ??
-      "Customer Compliance Services <onboarding@resend.dev>",
-    to,
-    subject,
-  };
+}
 
-  // ✅ ONLY add one content type
-  if (html) {
-    emailPayload.html = html;
-  } else if (text) {
-    emailPayload.text = text;
-  } else {
+export const sendEmail = async ({
+  to,
+  subject,
+  text,
+  html,
+  attachments,
+}: SendEmailOptions) => {
+  if (!html && !text) {
     throw new Error("Either html or text must be provided");
   }
 
-  // ✅ Attachments only if present
-  if (attachments && attachments.length > 0) {
-    emailPayload.attachments = attachments;
-  }
+  const mailOptions: nodemailer.SendMailOptions = {
+    from:
+      process.env.SMTP_FROM ||
+      `"Customer Compliance Services" <${process.env.SMTP_USER}>`,
+    to,
+    subject,
+    ...(html ? { html } : { text }),
+    ...(attachments && { attachments }),
+  };
 
-  const response = await resend.emails.send(emailPayload);
-
-  return response;
+  return transporter.sendMail(mailOptions);
 };
