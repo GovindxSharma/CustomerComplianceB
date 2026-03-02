@@ -69,42 +69,6 @@ export const createMonthlyCompliance = async (req: Request, res: Response) => {
   }
 };
 
-// Get all records for a client
-// export const getMonthlyComplianceByClient = async (
-//   req: Request,
-//   res: Response
-// ) => {
-//   try {
-//     const { clientId } = req.params;
-//     const loggedUser = req.user; // comes from auth middleware
-//     if (!loggedUser) return res.status(401).json({ message: "Unauthorized" });
-
-//     const client = await Client.findById(clientId);
-//     if (!client) return res.status(404).json({ message: "Client not found" });
-
-//     // ---------------- ROLE-BASED ACCESS ----------------
-//     if (
-//       loggedUser.role === Roles.EMPLOYEE &&
-//       client.assignedTo?.toString() !== loggedUser.id.toString()
-//     ) {
-//       return res.status(403).json({ message: "Forbidden" });
-//     }
-
-//     // Fetch monthly compliance
-//     const records = await MonthlyCompliance.find({
-//       client_id: clientId,
-//     }).populate({
-//       path: "category_id",
-//       select: "name",
-//     });
-
-//     res.status(200).json(records);
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ message: "Server error" });
-//   }
-// };
-
 export const getMonthlyComplianceByClient = async (
   req: Request,
   res: Response,
@@ -542,6 +506,3 @@ export const getBillPending = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-
-
-

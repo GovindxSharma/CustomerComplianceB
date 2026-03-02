@@ -104,10 +104,14 @@ export const createClient = async (req: Request, res: Response) => {
 export const getClients = async (req: Request, res: Response) => {
   try {
     const { company_id } = req.query;
-    if (!company_id)
-      return res.status(400).json({ message: "company_id is required" });
 
-    const clients = await Client.find({ company_id });
+    if (!company_id) {
+      return res.status(400).json({ message: "company_id is required" });
+    }
+
+    const clients = await Client.find({ company_id })
+      .sort({ name: 1 }); // 1 = ascending, -1 = descending
+
     res.status(200).json({ clients });
   } catch (err) {
     console.error(err);
