@@ -269,30 +269,63 @@ export const getRevenueMonthly = async (req: Request, res: Response) => {
     if (!company_id)
       return res.status(400).json({ message: "Company ID missing" });
 
-    // Step 1: Get all clients for this company
+const currentYear = new Date().getFullYear();
+const yearParam = Number(req.query.year);
+
+const year = !isNaN(yearParam) ? yearParam : currentYear;
+
+    // Step 1: Get clients of company
     const clients = await Client.find({ company_id }, { _id: 1 }).lean();
     const clientIds = clients.map((c) => c._id);
 
-    // Step 2: Get monthly compliance records for these clients
+    // Step 2: Fetch records for that year
     const records = await MonthlyCompliance.find({
       client_id: { $in: clientIds },
+      year: year,
     }).lean();
 
-    // Step 3: Aggregate revenue by month
+    // Step 3: Prepare month order
+    const months = [
+      "01",
+      "02",
+      "03",
+      "04",
+      "05",
+      "06",
+      "07",
+      "08",
+      "09",
+      "10",
+      "11",
+      "12",
+    ];
+
     const revenueMap: Record<string, number> = {};
-    records.forEach((rec) => {
-      const month = rec.month || "Unknown";
-      if (!revenueMap[month]) revenueMap[month] = 0;
-      revenueMap[month] += rec.actualBill || 0;
+
+    months.forEach((m) => {
+      revenueMap[m] = 0;
     });
 
-    // Step 4: Convert to array for frontend
-    const result = Object.keys(revenueMap).map((month) => ({
+    // Step 4: Aggregate revenue
+records.forEach((rec) => {
+  const month = rec.month;
+
+  if (month && revenueMap[month] !== undefined) {
+    revenueMap[month] += rec.actualBill || 0;
+  }
+});
+
+    // Step 5: Ensure ascending order
+    const result = months.map((month) => ({
       month,
       revenue: revenueMap[month],
     }));
 
-    return res.status(200).json({ success: true, data: result });
+    return res.status(200).json({
+      success: true,
+      year,
+      data: result,
+    });
   } catch (err) {
     console.error("Revenue monthly stats error:", err);
     return res
@@ -300,4 +333,3 @@ export const getRevenueMonthly = async (req: Request, res: Response) => {
       .json({ success: false, message: "Failed to load revenue stats" });
   }
 };
-
