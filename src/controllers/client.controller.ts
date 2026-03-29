@@ -424,6 +424,8 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
           dataReceiveStatus: r.dataReceiveStatus,
           workProgress: r.workProgress,
           billStatus: r.billStatus,
+          noOfWorkers: r.workersAsPerData,
+          bill: r.actualBill,
         })),
       });
     }
