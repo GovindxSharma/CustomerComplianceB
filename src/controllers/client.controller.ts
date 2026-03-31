@@ -208,6 +208,7 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
       billStatus,
       month,
       year,
+      category_id,
     } = req.query as Record<string, string>;
 
     if (!company_id) {
@@ -365,6 +366,13 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
         if (year && Number(r.year) !== Number(year)) return false;
 
         if (
+            category_id &&
+            r.category_id?.toString() !== category_id.toString()
+          ) {
+            return false;
+          }
+
+        if (
           dataStatus &&
           normalize(r.dataReceiveStatus) !== normalize(dataStatus)
         )
@@ -426,6 +434,7 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
           billStatus: r.billStatus,
           noOfWorkers: r.workersAsPerData,
           bill: r.actualBill,
+          catrgory_id: r.category_id,
         })),
       });
     }
