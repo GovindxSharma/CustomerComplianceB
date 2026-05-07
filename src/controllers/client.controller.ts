@@ -31,11 +31,45 @@ export const createClient = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Required fields missing" });
     }
 
-    const existing = await Client.findOne({ name, company_id });
-    if (existing) {
+    
+    const existingName = await Client.findOne({ name, company_id });
+    if (existingName) {
       return res
         .status(400)
         .json({ message: "Client already exists for this company" });
+    }
+
+    
+    if (email) {
+      const existingEmail = await Client.findOne({ email: email.toLowerCase().trim() });
+      if (existingEmail) {
+        return res.status(400).json({
+          message: "A client with this email already exists",
+          field: "email",
+        });
+      }
+    }
+
+   
+    if (contactNumber) {
+      const existingPhone = await Client.findOne({ contactNumber });
+      if (existingPhone) {
+        return res.status(400).json({
+          message: "A client with this phone number already exists",
+          field: "contactNumber",
+        });
+      }
+    }
+
+   
+    if (gstNumber) {
+      const existingGST = await Client.findOne({ gstNumber });
+      if (existingGST) {
+        return res.status(400).json({
+          message: "A client with this GST number already exists",
+          field: "gstNumber",
+        });
+      }
     }
 
     // parse startMonth and startYear to numbers
@@ -94,8 +128,24 @@ export const createClient = async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ message: "Client created successfully", client });
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
+    // Handle MongoDB duplicate key errors as a safety net
+    if (err.code === 11000) {
+      const duplicateField = Object.keys(err.keyPattern || {})[0] as string;
+
+const fieldMessages: Record<string, string> = {
+  email: "A client with this email already exists",
+  contactNumber: "A client with this phone number already exists",
+  gstNumber: "A client with this GST number already exists",
+};
+
+return res.status(400).json({
+  message:
+    fieldMessages[duplicateField] || "Duplicate value detected",
+  field: duplicateField,
+});
+    }
     res.status(500).json({ message: "Server error" });
   }
 };
