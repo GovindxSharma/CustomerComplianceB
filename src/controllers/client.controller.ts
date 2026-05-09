@@ -35,7 +35,7 @@ export const createClient = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Client name must contain only alphabetic characters", field: "name" });
     }
 
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    if (email && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(email.trim())) {
       return res.status(400).json({ message: "Enter a valid email address", field: "email" });
     }
 
