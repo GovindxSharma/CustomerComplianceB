@@ -94,13 +94,19 @@ export const createClient = async (req: Request, res: Response) => {
 // ─── Get all clients for a company ───────────────────────────────────────────
 export const getClients = async (req: Request, res: Response) => {
   try {
-    const { company_id } = req.query;
+    const { company_id, assignedTo } = req.query;
 
     if (!company_id) {
       return res.status(400).json({ message: "company_id is required" });
     }
 
-    const clients = await Client.find({ company_id }).sort({ name: 1 });
+    const filter: Record<string, any> = { company_id };
+
+    if (assignedTo) {
+      filter.assignedTo = assignedTo;
+    }
+
+    const clients = await Client.find(filter).sort({ name: 1 });
     res.status(200).json({ clients });
   } catch (err) {
     console.error(err);
