@@ -3,13 +3,14 @@ import { Client } from "../models/client.model";
 import { generateMonthlyComplianceRecordsForClient } from "../helpers/monthlyCompliance.helper";
 import mongoose from "mongoose";
 import { MonthlyCompliance } from "../models/monthlyCompliance.model";
-import {User} from "../models/user.model"; // make sure this is your user model
+import { User } from "../models/user.model";
 import { sendNotification } from "../utils/notificationService";
 import { Roles } from "../commons/roles";
 
 const toObjectId = (value: any): mongoose.Types.ObjectId =>
   new mongoose.Types.ObjectId(String(value));
 
+// ─── Create client ────────────────────────────────────────────────────────────
 export const createClient = async (req: Request, res: Response) => {
   try {
     const {
@@ -97,43 +98,34 @@ export const createClient = async (req: Request, res: Response) => {
       site,
       company_id,
       ...(assignedTo && { assignedTo }),
-      startMonth: startMonthNum.toString(), // save as string like in schema
+      startMonth: startMonthNum.toString(),
       startYear: startYearNum,
     });
 
+    // Backfill compliance records from startMonth/startYear up to today
     await generateMonthlyComplianceRecordsForClient(
       client._id as mongoose.Types.ObjectId,
       startMonthNum,
-      startYearNum
+      startYearNum,
     );
 
-    const admins = await User.find({
-      company_id,
-      role: Roles.ADMIN,
-    });
-
-    const accountants = await User.find({
-      company_id,
-      role: Roles.ACCOUNTANT,
-    });
+    // ── Notifications ─────────────────────────────────────────────────────
+    const admins = await User.find({ company_id, role: Roles.ADMIN });
+    const accountants = await User.find({ company_id, role: Roles.ACCOUNTANT });
 
     const recipients: mongoose.Types.ObjectId[] = [
       ...admins.map((u) => toObjectId(u._id)),
       ...accountants.map((u) => toObjectId(u._id)),
     ];
 
-    if (assignedTo) {
-      recipients.push(toObjectId(assignedTo));
-    }
-
-    const createdBy = toObjectId(req.user!.id);
+    if (assignedTo) recipients.push(toObjectId(assignedTo));
 
     await sendNotification({
       type: "Client Added",
       message: `New client created: ${client.name}`,
       client_id: toObjectId(client._id),
       company_id: toObjectId(company_id),
-      createdBy,
+      createdBy: toObjectId(req.user!.id),
       recipients,
     });
 
@@ -160,18 +152,22 @@ return res.status(400).json({
   }
 };
 
-// Get all clients for a company
+// ─── Get all clients for a company ───────────────────────────────────────────
 export const getClients = async (req: Request, res: Response) => {
   try {
-    const { company_id } = req.query;
+    const { company_id, assignedTo } = req.query;
 
     if (!company_id) {
       return res.status(400).json({ message: "company_id is required" });
     }
 
-    const clients = await Client.find({ company_id })
-      .sort({ name: 1 }); // 1 = ascending, -1 = descending
+    const filter: Record<string, any> = { company_id };
 
+    if (assignedTo) {
+      filter.assignedTo = assignedTo;
+    }
+
+    const clients = await Client.find(filter).sort({ name: 1 });
     res.status(200).json({ clients });
   } catch (err) {
     console.error(err);
@@ -179,7 +175,7 @@ export const getClients = async (req: Request, res: Response) => {
   }
 };
 
-// Get client by ID
+// ─── Get client by ID ─────────────────────────────────────────────────────────
 export const getClientById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -193,7 +189,7 @@ export const getClientById = async (req: Request, res: Response) => {
   }
 };
 
-// Update client
+// ─── Update client ────────────────────────────────────────────────────────────
 export const updateClient = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -270,37 +266,25 @@ export const updateClient = async (req: Request, res: Response) => {
     const client = await Client.findByIdAndUpdate(id, updates, { new: true });
     if (!client) return res.status(404).json({ message: "Client not found" });
 
-    // 🔥 Notification Logic
-    // ----------------------------------------------------------
-
     const createdBy = toObjectId(req.user!.id);
     const companyId = toObjectId(client.company_id);
 
-    // Fetch admins + accountants for this company
     const adminAndAccountantUsers = await User.find({
       company_id: companyId,
       role: { $in: [Roles.ADMIN, Roles.ACCOUNTANT] },
     }).lean();
 
-    // Convert _id to ObjectId[]
-    const roleRecipients = adminAndAccountantUsers.map((u) =>
-      toObjectId(u._id)
-    );
+    const recipients = [
+      ...adminAndAccountantUsers.map((u) => toObjectId(u._id)),
+      ...(client.assignedTo ? [toObjectId(client.assignedTo)] : []),
+    ];
 
-    // Assigned employee (optional)
-    const employeeRecipient = client.assignedTo
-      ? [toObjectId(client.assignedTo)]
-      : [];
-
-    const recipients = [...roleRecipients, ...employeeRecipient];
-
-    // Send the notification
     await sendNotification({
       client_id: toObjectId(client._id),
       company_id: companyId,
       type: "Client Updated",
       message: `Client ${client.name} was updated.`,
-      createdBy: createdBy,
+      createdBy,
       recipients,
     });
 
@@ -311,7 +295,7 @@ export const updateClient = async (req: Request, res: Response) => {
   }
 };
 
-// Delete client
+// ─── Delete client ────────────────────────────────────────────────────────────
 export const deleteClient = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -325,6 +309,7 @@ export const deleteClient = async (req: Request, res: Response) => {
   }
 };
 
+// ─── Get clients with compliance summary ──────────────────────────────────────
 export const getClientsWithCompliance = async (req: Request, res: Response) => {
   try {
     const {
@@ -350,9 +335,7 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
     const loggedUser = req.user;
     const isEmployee = loggedUser.role === "Employee";
 
-    // ------------------------------------------------
-    // 1️⃣ CLIENT QUERY (role-based + employee filter)
-    // ------------------------------------------------
+    // ── 1. Client query ───────────────────────────────────────────────────
     const clientQuery: any = { company_id };
 
     if (isEmployee) {
@@ -370,155 +353,105 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
       }
     }
 
-    let clients = await Client.find(clientQuery).lean();
-
-    if (clients.length === 0) {
-      return res.status(200).json({ clients: [] });
-    }
+    const clients = await Client.find(clientQuery).lean();
+    if (clients.length === 0) return res.status(200).json({ clients: [] });
 
     const clientIds = clients.map((c) => c._id);
 
-    // ------------------------------------------------
-    // 2️⃣ FETCH FULL MONTHLY HISTORY
-    // ------------------------------------------------
+    // ── 2. Fetch full monthly history ─────────────────────────────────────
     const allMonthly = await MonthlyCompliance.find({
       client_id: { $in: clientIds },
     }).lean();
 
     const monthlyMap = new Map<string, any[]>();
-
     for (const rec of allMonthly) {
       const key = rec.client_id.toString();
-      if (!monthlyMap.has(key)) {
-        monthlyMap.set(key, []);
-      }
+      if (!monthlyMap.has(key)) monthlyMap.set(key, []);
       monthlyMap.get(key)!.push(rec);
     }
 
-    // ------------------------------------------------
-    // 3️⃣ FETCH ASSIGNED USERS
-    // ------------------------------------------------
+    // ── 3. Resolve assigned user names ────────────────────────────────────
     const userIds = clients.map((c) => c.assignedTo).filter(Boolean);
-
     const users = await User.find({ _id: { $in: userIds } })
       .select("name")
       .lean();
-
     const userMap = new Map(users.map((u) => [u._id.toString(), u.name]));
 
-    // ------------------------------------------------
-    // HELPERS
-    // ------------------------------------------------
+    // ── Helpers ───────────────────────────────────────────────────────────
     const normalize = (v?: string) => v?.trim().toLowerCase();
-
     const monthStr = (m: number, y: number) => `${m}-${y}`;
 
+    // ── 4. Process each client ────────────────────────────────────────────
     const response: any[] = [];
 
-    // ------------------------------------------------
-    // 4️⃣ PROCESS EACH CLIENT
-    // ------------------------------------------------
     for (const client of clients) {
       const fullMonthly = monthlyMap.get(client._id.toString()) || [];
-
       const assignedName = client.assignedTo
         ? userMap.get(client.assignedTo.toString()) || "-"
         : "-";
 
-      // SORT full history DESC
+      // Sort DESC (most recent first)
       fullMonthly.sort((a, b) => {
         const yDiff = Number(b.year) - Number(a.year);
         if (yDiff !== 0) return yDiff;
         return Number(b.month) - Number(a.month);
       });
 
-      // ------------------------------------------------
-      // 🧠 GLOBAL DATA STATUS
-      // ------------------------------------------------
+      // ── Global data status ─────────────────────────────────────────────
       let dataStatusText = "-";
-
       const latestReceived = fullMonthly.find(
         (r) => normalize(r.dataReceiveStatus) === "data received",
       );
-
       if (latestReceived) {
         dataStatusText =
           latestReceived.workProgress === "Completed"
-            ? `Data Complete ${monthStr(
-                Number(latestReceived.month),
-                Number(latestReceived.year),
-              )}`
-            : `Data Received ${monthStr(
-                Number(latestReceived.month),
-                Number(latestReceived.year),
-              )}`;
+            ? `Data Complete ${monthStr(Number(latestReceived.month), Number(latestReceived.year))}`
+            : `Data Received ${monthStr(Number(latestReceived.month), Number(latestReceived.year))}`;
       }
 
-      // ------------------------------------------------
-      // 🧠 GLOBAL BILL STATUS
-      // ------------------------------------------------
+      // ── Global bill status ─────────────────────────────────────────────
       let billStatusText = "-";
-
       const pendingBill = fullMonthly.find(
         (r) =>
           normalize(r.dataReceiveStatus) === "data received" &&
           r.workProgress === "Completed" &&
           r.billStatus !== "Generated",
       );
-
       if (pendingBill) {
-        billStatusText = `Bill Pending ${monthStr(
-          Number(pendingBill.month),
-          Number(pendingBill.year),
-        )}`;
+        billStatusText = `Bill Pending ${monthStr(Number(pendingBill.month), Number(pendingBill.year))}`;
       } else {
         const lastCompleted = fullMonthly.find(
           (r) =>
             normalize(r.dataReceiveStatus) === "data received" &&
             r.workProgress === "Completed",
         );
-
         if (lastCompleted) {
-          billStatusText = `Bill Generated ${monthStr(
-            Number(lastCompleted.month),
-            Number(lastCompleted.year),
-          )}`;
+          billStatusText = `Bill Generated ${monthStr(Number(lastCompleted.month), Number(lastCompleted.year))}`;
         }
       }
 
-      // ------------------------------------------------
-      // 5️⃣ MONTH CARD FILTERING (NOT GLOBAL STATUS)
-      // ------------------------------------------------
+      // ── Month-level filter ─────────────────────────────────────────────
       const filteredMonthly = fullMonthly.filter((r) => {
         if (month && r.month !== month) return false;
         if (year && Number(r.year) !== Number(year)) return false;
-
-        if (
-            category_id &&
-            r.category_id?.toString() !== category_id.toString()
-          ) {
-            return false;
-          }
-
+        if (category_id && r.category_id?.toString() !== category_id.toString())
+          return false;
         if (
           dataStatus &&
           normalize(r.dataReceiveStatus) !== normalize(dataStatus)
         )
           return false;
-
         if (
           workProgress &&
           normalize(r.workProgress) !== normalize(workProgress)
         )
           return false;
-
         if (billStatus && normalize(r.billStatus) !== normalize(billStatus))
           return false;
-
         return true;
       });
 
-      // If month-level filters applied and no match → skip client
+      // Skip client if month-level filters are active but nothing matched
       if (
         (month || year || dataStatus || workProgress || billStatus) &&
         filteredMonthly.length === 0
@@ -526,25 +459,16 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
         continue;
       }
 
-      // ------------------------------------------------
-      // 6️⃣ SEARCH FILTER (CLIENT LEVEL ONLY)
-      // ------------------------------------------------
+      // ── Client-level search ────────────────────────────────────────────
       if (searchText && searchText.trim()) {
-        const searchValue = searchText.trim().replace(/\s+/g, " ").toLowerCase();
-
-        const searchableFields = [client.name, client.businessUnit, client.site]
+        const needle = searchText.trim().replace(/\s+/g, " ").toLowerCase();
+        const haystack = [client.name, client.businessUnit, client.site]
           .filter((v): v is string => !!v)
           .map((v) => v.trim().replace(/\s+/g, " ").toLowerCase())
           .join(" ");
-
-        if (!searchableFields.includes(searchValue)) {
-          continue;
-        }
+        if (!haystack.includes(needle)) continue;
       }
 
-      // ------------------------------------------------
-      // FINAL RESPONSE OBJECT
-      // ------------------------------------------------
       response.push({
         id: client._id,
         name: client.name,
@@ -562,7 +486,7 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
           billStatus: r.billStatus,
           noOfWorkers: r.workersAsPerData,
           bill: r.actualBill,
-          catrgory_id: r.category_id,
+          category_id: r.category_id, // fixed typo: was catrgory_id
         })),
       });
     }
@@ -574,28 +498,21 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
   }
 };
 
+// ─── Get overdue clients ──────────────────────────────────────────────────────
 export const getOverdueClients = async (req: Request, res: Response) => {
   try {
     const companyId = req.user!.company_id;
     const userId = req.user!.id;
-    const role = req.user!.role; 
+    const role = req.user!.role;
 
     if (!companyId) {
-      return res.status(400).json({
-        message: "Company ID missing from authenticated user.",
-      });
+      return res
+        .status(400)
+        .json({ message: "Company ID missing from authenticated user." });
     }
 
-    // Base query for all roles
-    const baseQuery: any = {
-      company_id: companyId,
-      isOverdue: true,
-    };
-
-    // If Employee → restrict to assigned clients
-    if (role === "Employee") {
-      baseQuery.assignedTo = userId;
-    }
+    const baseQuery: any = { company_id: companyId, isOverdue: true };
+    if (role === "Employee") baseQuery.assignedTo = userId;
 
     const overdueClients = await Client.find(baseQuery)
       .populate("assignedTo", "name email")
@@ -615,4 +532,3 @@ export const getOverdueClients = async (req: Request, res: Response) => {
     });
   }
 };
-

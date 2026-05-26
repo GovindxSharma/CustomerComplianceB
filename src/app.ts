@@ -1,62 +1,60 @@
 import "./config";
 import express from "express";
 import mongoose from "mongoose";
-import routes from "./routes";
 import cors from "cors";
+import routes from "./routes";
 import "./models/category.model";
 import { monthlyComplianceCron } from "./cron/montlyCompliance.cron";
-// import { generateMonthlyComplianceRecordsForClient } from "./helpers/monthlyCompliance.helper";
-// import { Client } from "./models/client.model";
+import { generateNextMonthComplianceForAllClients } from "./helpers/monthlyCompliance.helper";
 
 const app = express();
 
-// CORS setup
+// ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(
   cors({
     origin: process.env.FRONTEND_ORIGIN?.split(",") || "*",
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
-  })
+  }),
 );
-
-// export const runMonthlyComplianceForAllClients = async () => {
-//   try {
-//     const clients = await Client.find({
-//       startMonth: { $exists: true, $ne: null },
-//       startYear: { $exists: true, $ne: null },
-//     });
-
-//     console.log(`🚀 Running compliance for ${clients.length} clients...`);
-
-//     for (const client of clients) {
-//       await generateMonthlyComplianceRecordsForClient(
-//         client.id,
-//         parseInt(client.startMonth!), // since it's string
-//         client.startYear!,
-//       );
-//     }
-
-//     console.log("✅ All clients processed successfully");
-//   } catch (error) {
-//     console.error("❌ Error running compliance for all clients:", error);
-//   }
-// };
 
 app.use(express.json());
 
-// MongoDB Connection
+// ── Routes ────────────────────────────────────────────────────────────────────
+app.use("/", routes);
+
+/**
+ * Admin-only manual trigger — useful for:
+ *  - Backfilling records if the server was down on the 1st
+ *  - Testing without waiting for the cron to fire
+ *
+ * POST /admin/trigger-monthly-compliance
+ * Protected by whatever auth middleware you have on admin routes.
+ */
+app.post("/admin/trigger-monthly-compliance", async (_req, res) => {
+  try {
+    const summary = await generateNextMonthComplianceForAllClients();
+    res.json({ ok: true, summary });
+  } catch (err) {
+    console.error("[Manual Trigger] ❌", err);
+    res
+      .status(500)
+      .json({ ok: false, error: "Failed to run compliance generation" });
+  }
+});
+
+// ── MongoDB + startup ─────────────────────────────────────────────────────────
 mongoose
   .connect(process.env.MONGO_URI!)
   .then(() => {
-    monthlyComplianceCron();
-    // runMonthlyComplianceForAllClients();
     console.log("✅ MongoDB connected");
+    monthlyComplianceCron(); // register the cron AFTER DB is ready
   })
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
+  .catch((err) => {
+    console.error("❌ MongoDB connection error:", err);
+    process.exit(1); // no point running without a DB
+  });
 
-// Routes
-app.use("/", routes);
-
-// Server
+// ── Server ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
