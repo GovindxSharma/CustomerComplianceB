@@ -32,13 +32,58 @@ export const createClient = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Required fields missing" });
     }
 
-    const existing = await Client.findOne({ name, company_id });
-    if (existing) {
-      return res
-        .status(400)
-        .json({ message: "Client already exists for this company" });
+    if (!/^[A-Za-z0-9\s]+$/.test(name.trim())) {
+      return res.status(400).json({ message: "Client name must contain only alphanumeric characters and spaces", field: "name" });
     }
 
+    if (email && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(email.trim())) {
+      return res.status(400).json({ message: "Enter a valid email address", field: "email" });
+    }
+
+    if (contactNumber && !/^\d{10}$/.test(contactNumber.trim())) {
+      return res.status(400).json({ message: "Contact number must be exactly 10 digits", field: "contactNumber" });
+    }
+
+    if (gstNumber && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gstNumber.trim())) {
+      return res.status(400).json({ message: "Enter a valid 15-character GST number", field: "gstNumber" });
+    }
+
+    const existingName = await Client.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, "i") }, company_id });
+    if (existingName) {
+      return res.status(400).json({ message: "Client name already exists", field: "name" });
+    }
+
+    if (email) {
+      const existingEmail = await Client.findOne({ email: email.toLowerCase().trim() });
+      if (existingEmail) {
+        return res.status(400).json({
+          message: "A client with this email already exists",
+          field: "email",
+        });
+      }
+    }
+
+    if (contactNumber) {
+      const existingPhone = await Client.findOne({ contactNumber });
+      if (existingPhone) {
+        return res.status(400).json({
+          message: "A client with this phone number already exists",
+          field: "contactNumber",
+        });
+      }
+    }
+
+    if (gstNumber) {
+      const existingGST = await Client.findOne({ gstNumber });
+      if (existingGST) {
+        return res.status(400).json({
+          message: "A client with this GST number already exists",
+          field: "gstNumber",
+        });
+      }
+    }
+
+    // parse startMonth and startYear to numbers
     const startMonthNum = Number(startMonth);
     const startYearNum = Number(startYear);
 
@@ -85,8 +130,24 @@ export const createClient = async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ message: "Client created successfully", client });
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
+    // Handle MongoDB duplicate key errors as a safety net
+    if (err.code === 11000) {
+      const duplicateField = Object.keys(err.keyPattern || {})[0] as string;
+
+const fieldMessages: Record<string, string> = {
+  email: "A client with this email already exists",
+  contactNumber: "A client with this phone number already exists",
+  gstNumber: "A client with this GST number already exists",
+};
+
+return res.status(400).json({
+  message:
+    fieldMessages[duplicateField] || "Duplicate value detected",
+  field: duplicateField,
+});
+    }
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -133,6 +194,74 @@ export const updateClient = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const updates = req.body;
+
+    const existingClient = await Client.findById(id);
+    if (!existingClient) return res.status(404).json({ message: "Client not found" });
+
+    const company_id = existingClient.company_id;
+
+    if (updates.name !== undefined) {
+      const trimmedName = updates.name.trim();
+      if (!trimmedName) {
+        return res.status(400).json({ message: "Client name is required", field: "name" });
+      }
+      if (!/^[A-Za-z0-9\s]+$/.test(trimmedName)) {
+        return res.status(400).json({ message: "Client name must contain only alphanumeric characters and spaces", field: "name" });
+      }
+      const duplicateName = await Client.findOne({
+        name: { $regex: new RegExp(`^${trimmedName}$`, "i") },
+        company_id,
+        _id: { $ne: id },
+      });
+      if (duplicateName) {
+        return res.status(400).json({ message: "Client name already exists", field: "name" });
+      }
+    }
+
+    if (updates.email !== undefined) {
+      const trimmedEmail = updates.email.trim();
+      if (!trimmedEmail) {
+        return res.status(400).json({ message: "Email is required", field: "email" });
+      }
+      if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(trimmedEmail)) {
+        return res.status(400).json({ message: "Enter a valid email address", field: "email" });
+      }
+      const duplicateEmail = await Client.findOne({
+        email: trimmedEmail.toLowerCase(),
+        _id: { $ne: id },
+      });
+      if (duplicateEmail) {
+        return res.status(400).json({ message: "A client with this email already exists", field: "email" });
+      }
+    }
+
+    if (updates.contactNumber !== undefined && updates.contactNumber.trim() !== "") {
+      const trimmedPhone = updates.contactNumber.trim();
+      if (!/^\d{10}$/.test(trimmedPhone)) {
+        return res.status(400).json({ message: "Contact number must be exactly 10 digits", field: "contactNumber" });
+      }
+      const duplicatePhone = await Client.findOne({
+        contactNumber: trimmedPhone,
+        _id: { $ne: id },
+      });
+      if (duplicatePhone) {
+        return res.status(400).json({ message: "A client with this phone number already exists", field: "contactNumber" });
+      }
+    }
+
+    if (updates.gstNumber !== undefined && updates.gstNumber.trim() !== "") {
+      const trimmedGst = updates.gstNumber.trim();
+      if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(trimmedGst)) {
+        return res.status(400).json({ message: "Enter a valid 15-character GST number", field: "gstNumber" });
+      }
+      const duplicateGst = await Client.findOne({
+        gstNumber: trimmedGst,
+        _id: { $ne: id },
+      });
+      if (duplicateGst) {
+        return res.status(400).json({ message: "A client with this GST number already exists", field: "gstNumber" });
+      }
+    }
 
     const client = await Client.findByIdAndUpdate(id, updates, { new: true });
     if (!client) return res.status(404).json({ message: "Client not found" });
@@ -331,11 +460,11 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
       }
 
       // ── Client-level search ────────────────────────────────────────────
-      if (searchText) {
-        const needle = normalize(searchText) ?? "";
+      if (searchText && searchText.trim()) {
+        const needle = searchText.trim().replace(/\s+/g, " ").toLowerCase();
         const haystack = [client.name, client.businessUnit, client.site]
-          .filter(Boolean)
-          .map((v) => normalize(v) ?? "")
+          .filter((v): v is string => !!v)
+          .map((v) => v.trim().replace(/\s+/g, " ").toLowerCase())
           .join(" ");
         if (!haystack.includes(needle)) continue;
       }
