@@ -48,7 +48,18 @@ const userSchema = new Schema<IUser>(
         message: "Email is required for Admin or Accountant",
       },
     },
-    password: { type: String, required: true, minlength: 6 },
+    password: {
+      type: String,
+      required: true,
+      minlength: 6,
+      trim: true,
+      validate: {
+        validator: function (value: string) {
+          return !/\s/.test(value);
+        },
+        message: "Password cannot contain spaces",
+      },
+    },
     role: {
       type: String,
       enum: ["Admin", "Employee", "Accountant"],

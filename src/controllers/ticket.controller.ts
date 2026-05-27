@@ -9,7 +9,7 @@ export const createTicket = async (req: Request, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
-    const { title, description, priority, relatedClient } = req.body;
+    const { title, description, priority, relatedClient, assignedTo } = req.body;
     if (!title) return res.status(400).json({ message: "Title is required" });
 
     const ticket = await Ticket.create({
@@ -20,6 +20,9 @@ export const createTicket = async (req: Request, res: Response) => {
       raisedBy: new mongoose.Types.ObjectId(req.user.id),
       relatedClient: relatedClient
         ? new mongoose.Types.ObjectId(relatedClient)
+        : undefined,
+      assignedTo: assignedTo
+        ? new mongoose.Types.ObjectId(assignedTo)
         : undefined,
     });
 
