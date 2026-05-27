@@ -51,7 +51,7 @@ export const createNotification = async (req: Request, res: Response) => {
 // ---------------------------------------------
 export const getNotificationsByRecipient = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   try {
     const { recipient_id } = req.params;
@@ -65,6 +65,10 @@ export const getNotificationsByRecipient = async (
     const notifications = await Notification.find({
       recipient_id: recipientIdObj,
     })
+      .populate({
+        path: "client_id",
+        select: "name", // or just "name" based on your Client schema
+      })
       .sort({ createdAt: -1 })
       .lean();
 
