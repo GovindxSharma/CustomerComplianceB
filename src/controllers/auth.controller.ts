@@ -186,7 +186,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       stats.billPending = await MonthlyCompliance.countDocuments({
         client_id: { $in: clientIdList },
         workProgress: "Completed",
-        billStatus: "Pending",
+        billStatus: { $ne: "Generated" },
         // month: currentMonth,
         // year: currentYear,
       });

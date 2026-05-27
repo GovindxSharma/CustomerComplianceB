@@ -470,7 +470,7 @@ export const getBillPending = async (req: Request, res: Response) => {
     const billPendingClients = await MonthlyCompliance.find({
       // dataReceiveStatus: "Data Received",
       workProgress: "Completed",
-      billStatus: "Pending",
+      billStatus: { $ne: "Generated" },
     })
       .populate(
         "client_id",
@@ -487,6 +487,7 @@ export const getBillPending = async (req: Request, res: Response) => {
         const category = mc.category_id as any;
 
         return {
+          _id: mc._id,
           clientId: client._id,
           clientName: client.name,
           contactPerson: client.contactPerson || "-",
