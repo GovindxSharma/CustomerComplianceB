@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import { User } from "../models/user.model";
 import { Client } from "../models/client.model";
@@ -64,8 +65,12 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     const role = req.user?.role;
     const company_id = req.user?.company_id;
 
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
     const now = new Date();
-    const currentMonth = now.getMonth() + 1;
+    const currentMonth = String(now.getMonth() + 1).padStart(2, "0");
     const currentYear = now.getFullYear();
 
     let stats: any = {};
@@ -79,12 +84,12 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       clientIds = await Client.find({ company_id }, { _id: 1 }).lean();
     } else if (role === "Employee") {
       clientIds = await Client.find(
-        { company_id, assignedTo: userId },
+        { assignedTo: userId },
         { _id: 1 },
       ).lean();
     }
 
-    const clientIdList = clientIds.map((c) => c._id);
+    const clientIdList = clientIds.map((c) => new mongoose.Types.ObjectId(c._id.toString()));
 
     /* =========================
        TOTAL CLIENTS
@@ -132,8 +137,8 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     } else {
       stats.openTickets = await Ticket.countDocuments({
         company_id,
-        status: "Open",
         $or: [{ raisedBy: userId }, { assignedTo: userId }],
+        status: "Open",
       });
     }
 
@@ -193,17 +198,14 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     if (role === "Employee") {
       stats.dataReceived = await MonthlyCompliance.countDocuments({
         client_id: { $in: clientIdList },
+        workProgress: "Not Started",
         dataReceiveStatus: "Data Received",
-        workProgress: { $ne: "Completed" },
-        month: currentMonth,
-        year: currentYear,
       });
 
       stats.dataComplete = await MonthlyCompliance.countDocuments({
         client_id: { $in: clientIdList },
         workProgress: "Completed",
-        month: currentMonth,
-        year: currentYear,
+        dataReceiveStatus: "Data Received",
       });
     }
 

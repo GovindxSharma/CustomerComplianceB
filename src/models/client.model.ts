@@ -31,9 +31,9 @@ const clientSchema = new Schema<IClient>(
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     name: { type: String, required: true, trim: true },
     contactPerson: { type: String },
-    contactNumber: { type: String },
-    email: { type: String, required: true, lowercase: true, trim: true },
-    gstNumber: { type: String },
+    contactNumber: { type: String,unique: true },
+    email: { type: String, required: true, lowercase: true, unique: true, trim: true },
+    gstNumber: { type: String ,unique: true},
     address: { type: String },
     status: {
       type: String,
