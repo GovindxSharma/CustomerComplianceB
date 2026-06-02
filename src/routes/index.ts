@@ -10,6 +10,7 @@ import ticketRoutes from "./ticket.routes"
 import categoryRoutes from "./category.routes"
 import licenseRoutes from "./license.routes"
 import passwordRoutes from "./password.routes"
+import dropdownRoutes from "./dropdown.routes"
 
 const router = Router();
 
@@ -25,5 +26,6 @@ router.use("/ticket", ticketRoutes)
 router.use("/category", categoryRoutes)
 router.use("/license", licenseRoutes)
 router.use("/password", passwordRoutes)
+router.use("/dropdown", dropdownRoutes)
 
 export default router;
