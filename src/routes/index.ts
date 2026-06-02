@@ -11,6 +11,7 @@ import categoryRoutes from "./category.routes"
 import licenseRoutes from "./license.routes"
 import passwordRoutes from "./password.routes"
 import dropdownRoutes from "./dropdown.routes"
+import reminderRoutes from "./reminder.routes"
 
 const router = Router();
 
@@ -27,5 +28,6 @@ router.use("/category", categoryRoutes)
 router.use("/license", licenseRoutes)
 router.use("/password", passwordRoutes)
 router.use("/dropdown", dropdownRoutes)
+router.use("/reminder", reminderRoutes)
 
 export default router;
