@@ -4,13 +4,18 @@ import { Password } from "../models/password.model";
 import { Client } from "../models/client.model";
 import { decryptPassword } from "../utils/passwordService";
 
-// Utility: check if employee can access a given client
-const verifyEmployeeAccess = async (userId: string, clientId: string) => {
+const verifyEmployeeAccess = async (
+  userId: string,
+  companyId: string,
+  clientId: string,
+) => {
   const client = await Client.findOne({
     _id: clientId,
+    company_id: companyId,
     assignedTo: userId,
   });
-  return !!client; // true if assigned
+
+  return !!client;
 };
 
 // =============== CREATE PASSWORD ===================
@@ -22,9 +27,19 @@ export const createPassword = async (req: Request, res: Response) => {
     const { company_id, client_id, category, username, password, remarks } =
       req.body;
 
+    if (!category) {
+      return res.status(400).json({
+        message: "Password category is required",
+      });
+    }
+
     // Employee can only create for assigned clients
     if (user.role === "Employee") {
-      const allowed = await verifyEmployeeAccess(user.id, client_id);
+      const allowed = await verifyEmployeeAccess(
+        user.id,
+        user.company_id,
+        client_id,
+      );
       if (!allowed) {
         return res
           .status(403)
@@ -42,7 +57,14 @@ export const createPassword = async (req: Request, res: Response) => {
       addedBy: user.id,
     });
 
-    res.status(201).json({ message: "Password added", data: newPassword });
+    const populatedPassword = await Password.findById(newPassword._id)
+      .populate("client_id", "name")
+      .populate("category", "name type");
+
+    res.status(201).json({
+      message: "Password added",
+      data: populatedPassword,
+    });
   } catch (err: any) {
     console.error(err);
     res.status(500).json({ message: err.message || "Failed to create entry" });
@@ -70,6 +92,7 @@ export const getAllPasswords = async (req: Request, res: Response) => {
 
     const passwords = await Password.find(query)
       .populate("client_id", "name")
+      .populate("category", "name type")
       .populate("addedBy", "name")
       .populate("updatedBy", "name")
       .sort({ createdAt: -1 });
@@ -78,6 +101,52 @@ export const getAllPasswords = async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error(err);
     res.status(500).json({ message: "Failed to fetch passwords" });
+  }
+};
+
+export const getPasswordById = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const password = await Password.findById(req.params.id)
+      .populate("client_id", "name")
+      .populate("category", "name type")
+      .populate("addedBy", "name")
+      .populate("updatedBy", "name");
+
+    if (!password) {
+      return res.status(404).json({
+        message: "Password not found",
+      });
+    }
+
+    if (
+      user.role === "Employee" &&
+      !(await verifyEmployeeAccess(
+        user.id,
+        user.company_id,
+        password.client_id.toString(),
+      ))
+    ) {
+      return res.status(403).json({
+        message: "Not allowed to view this password",
+      });
+    }
+
+    return res.json({
+      data: password,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      message: "Failed to fetch password",
+    });
   }
 };
 
@@ -98,7 +167,8 @@ export const updatePassword = async (req: Request, res: Response) => {
     if (user.role === "Employee") {
       const allowed = await verifyEmployeeAccess(
         user.id,
-        existing.client_id.toString()
+        user.company_id,
+        existing.client_id.toString(),
       );
       if (!allowed) {
         return res
@@ -117,7 +187,16 @@ export const updatePassword = async (req: Request, res: Response) => {
 
     await existing.save();
 
-    res.json({ message: "Password updated", data: existing });
+    const updatedPassword = await Password.findById(existing._id)
+      .populate("client_id", "name")
+      .populate("category", "name type")
+      .populate("addedBy", "name")
+      .populate("updatedBy", "name");
+
+    res.json({
+      message: "Password updated",
+      data: updatedPassword,
+    });
   } catch (err: any) {
     console.error(err);
     res.status(500).json({ message: "Failed to update password" });
@@ -141,7 +220,8 @@ export const deletePassword = async (req: Request, res: Response) => {
     if (user.role === "Employee") {
       const allowed = await verifyEmployeeAccess(
         user.id,
-        existing.client_id.toString()
+        user.company_id,
+        existing.client_id.toString(),
       );
       if (!allowed) {
         return res
@@ -161,9 +241,19 @@ export const deletePassword = async (req: Request, res: Response) => {
 
 export const decryptPasswords = async (req: Request, res: Response) => {
   try {
+    const user = req.user;
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
     const { id } = req.params;
 
     const record = await Password.findById(id);
+
     if (!record) {
       return res.status(404).json({
         success: false,
@@ -171,7 +261,20 @@ export const decryptPasswords = async (req: Request, res: Response) => {
       });
     }
 
-    // decrypting the password
+    if (
+      user.role === "Employee" &&
+      !(await verifyEmployeeAccess(
+        user.id,
+        user.company_id,
+        record.client_id.toString(),
+      ))
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Not allowed to view this password",
+      });
+    }
+
     const decrypted = decryptPassword(record.password);
 
     return res.status(200).json({
@@ -180,6 +283,7 @@ export const decryptPasswords = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Decrypt error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to decrypt password",
