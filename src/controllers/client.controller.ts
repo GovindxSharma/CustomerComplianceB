@@ -53,26 +53,6 @@ export const createClient = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Client name already exists", field: "name" });
     }
 
-    if (email) {
-      const existingEmail = await Client.findOne({ email: email.toLowerCase().trim() });
-      if (existingEmail) {
-        return res.status(400).json({
-          message: "A client with this email already exists",
-          field: "email",
-        });
-      }
-    }
-
-    if (contactNumber) {
-      const existingPhone = await Client.findOne({ contactNumber });
-      if (existingPhone) {
-        return res.status(400).json({
-          message: "A client with this phone number already exists",
-          field: "contactNumber",
-        });
-      }
-    }
-
     if (gstNumber) {
       const existingGST = await Client.findOne({ gstNumber });
       if (existingGST) {
@@ -226,26 +206,12 @@ export const updateClient = async (req: Request, res: Response) => {
       if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(trimmedEmail)) {
         return res.status(400).json({ message: "Enter a valid email address", field: "email" });
       }
-      const duplicateEmail = await Client.findOne({
-        email: trimmedEmail.toLowerCase(),
-        _id: { $ne: id },
-      });
-      if (duplicateEmail) {
-        return res.status(400).json({ message: "A client with this email already exists", field: "email" });
-      }
     }
 
     if (updates.contactNumber !== undefined && updates.contactNumber.trim() !== "") {
       const trimmedPhone = updates.contactNumber.trim();
       if (!/^\d{10}$/.test(trimmedPhone)) {
         return res.status(400).json({ message: "Contact number must be exactly 10 digits", field: "contactNumber" });
-      }
-      const duplicatePhone = await Client.findOne({
-        contactNumber: trimmedPhone,
-        _id: { $ne: id },
-      });
-      if (duplicatePhone) {
-        return res.status(400).json({ message: "A client with this phone number already exists", field: "contactNumber" });
       }
     }
 
