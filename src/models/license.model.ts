@@ -3,8 +3,9 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface ILicense extends Document {
   client_id: mongoose.Schema.Types.ObjectId;
   company_id: mongoose.Schema.Types.ObjectId;
-  category: string;
+  category: mongoose.Schema.Types.ObjectId;
   licenseName: string;
+  workerLimit: number;
   startDate: Date;
   endDate: Date;
   createdAt?: Date;
@@ -23,12 +24,32 @@ const licenseSchema = new Schema<ILicense>(
       ref: "Company",
       required: true,
     },
-    category: { type: String, required: true },
-    licenseName: { type: String, required: true },
-    startDate: { type: Date, required: true },
-    endDate: { type: Date, required: true },
+    category: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Dropdown",
+      required: true,
+    },
+    licenseName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    workerLimit: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+    },
+    startDate: {
+      type: Date,
+      required: true,
+    },
+    endDate: {
+      type: Date,
+      required: true,
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const License = mongoose.model<ILicense>("License", licenseSchema);
