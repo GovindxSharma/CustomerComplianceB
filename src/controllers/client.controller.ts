@@ -27,33 +27,19 @@ export const createClient = async (req: Request, res: Response) => {
       startYear,
       assignedTo,
     } = req.body;
-
-    if (!name || !contactPerson || !contactNumber || !email || !businessUnit || !site || !startMonth || !startYear || !company_id) {
+    if (!name || !contactPerson || !contactNumber || !businessUnit || !site || !startMonth || !startYear || !company_id) {
       return res.status(400).json({ message: "Required fields missing" });
     }
 
-    if (
-      !name.trim() ||
-      !contactPerson.trim() ||
-      !contactNumber.trim() ||
-      !email.trim() ||
-      !businessUnit.trim() ||
-      !site.trim() ||
-      !startMonth.toString().trim() ||
-      !startYear.toString().trim()
-    ) {
-      return res.status(400).json({ message: "Required fields missing" });
-    }
-
-    if (!/^[A-Za-z0-9\s\-&:\(\)\[\].,\/_]+$/.test(name.trim())) {
+    if (!/^[A-Za-z0-9\s\-&@.,\/]+$/.test(name.trim())) {
       return res.status(400).json({ message: "Client name contains invalid characters", field: "name" });
     }
 
-    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(email.trim())) {
+    if (email && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(email.trim())) {
       return res.status(400).json({ message: "Enter a valid email address", field: "email" });
     }
 
-    if (!/^\d{10}$/.test(contactNumber.trim())) {
+    if (contactNumber && !/^\d{10}$/.test(contactNumber.trim())) {
       return res.status(400).json({ message: "Contact number must be exactly 10 digits", field: "contactNumber" });
     }
 
@@ -185,7 +171,7 @@ export const updateClient = async (req: Request, res: Response) => {
       if (!trimmedName) {
         return res.status(400).json({ message: "Client name is required", field: "name" });
       }
-      if (!/^[A-Za-z0-9\s\-&:\(\)\[\].,\/_]+$/.test(trimmedName)) {
+      if (!/^[A-Za-z0-9\s\-&@.,\/]+$/.test(trimmedName)) {
         return res.status(400).json({ message: "Client name contains invalid characters", field: "name" });
       }
     }
@@ -220,11 +206,8 @@ export const updateClient = async (req: Request, res: Response) => {
       }
     }
 
-    if (updates.email !== undefined) {
+    if (updates.email !== undefined && updates.email.trim() !== "") {
       const trimmedEmail = updates.email.trim();
-      if (!trimmedEmail) {
-        return res.status(400).json({ message: "Email is required", field: "email" });
-      }
       if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(trimmedEmail)) {
         return res.status(400).json({ message: "Enter a valid email address", field: "email" });
       }
