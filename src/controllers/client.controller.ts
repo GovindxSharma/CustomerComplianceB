@@ -47,11 +47,21 @@ export const createClient = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Enter a valid 15-character GST number", field: "gstNumber" });
     }
 
-
-
     // parse startMonth and startYear to numbers
     const startMonthNum = Number(startMonth);
     const startYearNum = Number(startYear);
+
+    const existingClient = await Client.findOne({
+      company_id,
+      name: name.trim(),
+    });
+
+    if (existingClient) {
+      return res.status(400).json({
+        message: "A client with this name already exists",
+        field: "name",
+      });
+    }
 
     const client = await Client.create({
       name,
