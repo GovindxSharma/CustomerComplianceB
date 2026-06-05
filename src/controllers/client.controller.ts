@@ -35,9 +35,12 @@ export const createClient = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Client name contains invalid characters", field: "name" });
     }
 
-    if (email && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(email.trim())) {
-      return res.status(400).json({ message: "Enter a valid email address", field: "email" });
-    }
+if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+  return res.status(400).json({
+    message: "Enter a valid email address",
+    field: "email",
+  });
+}
 
     if (contactNumber && !/^\d{10}$/.test(contactNumber.trim())) {
       return res.status(400).json({ message: "Contact number must be exactly 10 digits", field: "contactNumber" });
