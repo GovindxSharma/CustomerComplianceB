@@ -507,3 +507,94 @@ export const getBillPending = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+// Pending Bills Report for Admin
+export const getPendingBillsReport = async (req: Request, res: Response) => {
+  try {
+    const loggedUser = req.user;
+    if (!loggedUser) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const companyId = req.query.company_id || loggedUser.company_id;
+    if (!companyId) {
+      return res.status(400).json({ message: "company_id is required" });
+    }
+
+    // Calculate last month and last to last month dynamically
+    const today = new Date();
+    const lastMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastMonthStr = String(lastMonthDate.getMonth() + 1).padStart(2, "0");
+    const lastMonthYear = lastMonthDate.getFullYear();
+
+    const lastToLastMonthDate = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+    const lastToLastMonthStr = String(lastToLastMonthDate.getMonth() + 1).padStart(2, "0");
+    const lastToLastMonthYear = lastToLastMonthDate.getFullYear();
+
+    // 1. Fetch all active or inactive clients of the company
+    const clients = await Client.find({ company_id: companyId })
+      .populate({
+        path: "assignedTo",
+        select: "name email"
+      })
+      .lean();
+
+    if (clients.length === 0) {
+      return res.status(200).json({ data: [] });
+    }
+
+    const clientIds = clients.map(c => c._id);
+
+    // 2. Fetch pending bill monthly compliance records for these clientIds, specifically for last two months
+    const pendingCompliances = await MonthlyCompliance.find({
+      client_id: { $in: clientIds },
+      billStatus: "Pending",
+      $or: [
+        { month: lastMonthStr, year: lastMonthYear },
+        { month: lastToLastMonthStr, year: lastToLastMonthYear }
+      ]
+    })
+      .populate({
+        path: "category_id",
+        select: "name price"
+      })
+      .sort({ year: -1, month: -1 })
+      .lean();
+
+    // 3. Map the data to return a comprehensive structure
+    const data = pendingCompliances.map((mc) => {
+      const client = clients.find((c) => c._id.toString() === mc.client_id.toString());
+      const category = mc.category_id as any;
+      const employee = client?.assignedTo as any;
+
+      return {
+        _id: mc._id,
+        clientId: client?._id,
+        clientName: client?.name || "-",
+        contactPerson: client?.contactPerson || "-",
+        contactNumber: client?.contactNumber || "-",
+        email: client?.email || "-",
+        gstNumber: client?.gstNumber || "-",
+        address: client?.address || "-",
+        businessUnit: client?.businessUnit || "-",
+        site: client?.site || "-",
+        assignedEmployee: employee?.name || "-",
+        assignedEmployeeEmail: employee?.email || "-",
+        month: mc.month,
+        year: mc.year,
+        categoryName: category?.name || "-",
+        workersAsPerData: mc.workersAsPerData || 0,
+        expectedBill: mc.expectedBill || 0,
+        actualBill: mc.actualBill || 0,
+        billStatus: mc.billStatus || "Pending",
+        workProgress: mc.workProgress || "Not Started",
+        dataReceiveStatus: mc.dataReceiveStatus || "Not Received",
+      };
+    });
+
+    return res.status(200).json({ data });
+  } catch (error) {
+    console.error("Error fetching pending bills report:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
