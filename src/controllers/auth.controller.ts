@@ -229,34 +229,73 @@ export const getDashboardStats = async (req: Request, res: Response) => {
 export const getClientMonthlyStats = async (req: Request, res: Response) => {
   try {
     const company_id = req.user?.company_id;
-    if (!company_id)
-      return res.status(400).json({ message: "Company ID missing" });
+
+    if (!company_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Company ID missing",
+      });
+    }
+
+    const year =
+      parseInt(req.query.year as string, 10) || new Date().getFullYear();
 
     const clients = await Client.find({ company_id });
 
-    const stats: Record<string, { new: number; inactive: number }> = {};
-
-    clients.forEach((client) => {
-      const month = client.startMonth || "Unknown";
-      if (!stats[month]) stats[month] = { new: 0, inactive: 0 };
-
-      if (client.status === "Active") stats[month].new += 1;
-      else if (client.status === "Inactive") stats[month].inactive += 1;
-    });
-
-    // ✅ TS-safe mapping
-    const result = Object.keys(stats).map((month) => ({
-      month,
-      new: stats[month]?.new || 0,
-      inactive: stats[month]?.inactive || 0,
+    // Index 1-12 will be used for months
+    const monthStats = Array.from({ length: 13 }, () => ({
+      new: 0,
+      inactive: 0,
     }));
 
-    return res.status(200).json({ success: true, data: result });
+    clients.forEach((client) => {
+      if (!client.createdAt) return;
+
+      const createdAt = new Date(client.createdAt);
+
+      if (createdAt.getFullYear() !== year) return;
+
+      const month = createdAt.getMonth() + 1; // 1-12
+
+if (client.status === "Active") {
+  monthStats[month]!.new += 1;
+} else if (client.status === "Inactive") {
+  monthStats[month]!.inactive += 1;
+}
+    });
+
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+
+const result = monthNames.map((monthName, index) => ({
+  month: monthName,
+  new: monthStats[index + 1]?.new ?? 0,
+  inactive: monthStats[index + 1]?.inactive ?? 0,
+}));
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
   } catch (err) {
     console.error("Client monthly stats error:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to load client stats" });
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load client stats",
+    });
   }
 };
 
