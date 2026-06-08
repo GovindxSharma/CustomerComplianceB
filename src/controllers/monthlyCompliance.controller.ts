@@ -9,6 +9,17 @@ import { User } from "../models/user.model";
 import { Client } from "../models/client.model";
 
 // Helper to generate monthly records for a client
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+const getMonthName = (monthStr: string): string => {
+  const idx = parseInt(monthStr, 10) - 1;
+  return MONTH_NAMES[idx] ?? monthStr;
+};
+
+// Helper to generate monthly records for a client
 export const generateMonthlyComplianceForClient = async (
   clientId: string,
   startMonth: number,
@@ -162,6 +173,12 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
     const clientId = clientData._id;
     const clientCompanyId = clientData.company_id;
     const assignedEmployee = clientData.assignedTo;
+    const monthName = getMonthName(record.month);
+    const recordYear = record.year;
+
+    // Fetch name of the user performing the update
+    const updatingUser = await User.findById(req.user.id).select("name").lean();
+    const updaterName = (updatingUser as any)?.name || "Unknown User";
 
     // ----------------- ROLE-BASED UPDATES -----------------
     if (role === Roles.EMPLOYEE || role === Roles.ADMIN) {
@@ -170,7 +187,7 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
         record.dataReceiveStatus = dataReceiveStatus;
         changes.push({
           type: "Data Received",
-          message: `Data Receive Status updated to '${dataReceiveStatus}' for ${clientName}`,
+          message: `Data Receive Status updated to '${dataReceiveStatus}' for ${clientName} | Month: ${monthName} ${recordYear} | Updated by: ${updaterName}`,
         });
       }
 
@@ -179,7 +196,7 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
         record.workProgress = workProgress;
         changes.push({
           type: "Progress Updated",
-          message: `Work Progress updated to '${workProgress}' for ${clientName}`,
+          message: `Work Progress updated to '${workProgress}' for ${clientName} | Month: ${monthName} ${recordYear} | Updated by: ${updaterName}`,
         });
       }
 
@@ -226,7 +243,7 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
           record.billStatus = billStatus;
           changes.push({
             type: "Bill Generated",
-            message: `Bill Status updated to '${billStatus}' for ${clientName}`,
+            message: `Bill Status updated to '${billStatus}' for ${clientName} | Month: ${monthName} ${recordYear} | Updated by: ${updaterName}`,
           });
         }
       }
@@ -242,7 +259,7 @@ export const updateMonthlyCompliance = async (req: Request, res: Response) => {
         record.billStatus = billStatus;
         changes.push({
           type: "Bill Generated",
-          message: `Bill Status updated to '${billStatus}' for ${clientName}`,
+          message: `Bill Status updated to '${billStatus}' for ${clientName} | Month: ${monthName} ${recordYear} | Updated by: ${updaterName}`,
         });
       }
       if (remarks && remarks !== record.remarks) {
