@@ -14,7 +14,7 @@ const dropdownSchema = new Schema<IDropdown>(
       ref: "Company",
       required: true,
     },
-    name: { type: String, required: true },
+    name: { type: String, nullable: true },
     type: {
       type: String,
       enum: ["license", "password", "companyName", "businessUnit"],

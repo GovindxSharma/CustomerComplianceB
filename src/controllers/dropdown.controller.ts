@@ -20,40 +20,61 @@ export const createDropdown = async (req: Request, res: Response) => {
   try {
     const { name, type, parent_id } = req.body;
 
+    const trimmedName = typeof name === "string" ? name.trim() : null;
+
     const query: any = {
       company_id: user.company_id,
       type,
-      name: name.trim(),
     };
+
+    if (trimmedName) {
+      query.name = trimmedName;
+    }
 
     if (parent_id) {
       query.parent_id = parent_id;
     }
 
-    const existing = await Dropdown.findOne(query);
+    if (trimmedName) {
+      const existing = await Dropdown.findOne(query);
 
-    if (existing) {
-      return res.status(400).json({
-        message: "Dropdown value already exists",
-      });
+      if (existing) {
+        const messages: Record<string, string> = {
+          companyName: "Company name already exists",
+          businessUnit: "Business unit already exists",
+          license: "License already exists",
+          password: "Password category already exists",
+        };
+
+        return res.status(400).json({
+          message: messages[type],
+        });
+      }
     }
 
     const dropdown = await Dropdown.create({
       company_id: user.company_id,
-      name: name.trim(),
+      name: trimmedName,
       type,
       parent_id: parent_id || undefined,
     });
 
     return res.status(201).json({
-      message: "Dropdown created successfully",
+      message: `${type} created successfully`,
       data: dropdown,
     });
   } catch (error: any) {
     console.error("Create Dropdown Error:", error);
 
+    // Mongo unique index error
+    if (error.code === 11000) {
+      return res.status(400).json({
+        message: "This value already exists",
+      });
+    }
+
     return res.status(500).json({
-      message: error.message,
+      message: error.message || "Failed to create dropdown",
     });
   }
 };
@@ -176,12 +197,18 @@ export const updateDropdown = async (req: Request, res: Response) => {
 
     const duplicate = await Dropdown.findOne(query);
 
-    if (duplicate) {
-      return res.status(400).json({
-        message: "Dropdown value already exists",
-      });
-    }
+if (duplicate) {
+  const messages: Record<string, string> = {
+    companyName: "Company name already exists",
+    businessUnit: "Business unit already exists",
+    license: "License already exists",
+    password: "Password category already exists",
+  };
 
+  return res.status(400).json({
+    message: messages[dropdown.type] || "Dropdown value already exists",
+  });
+}
     dropdown.name = name.trim();
     if (parent_id !== undefined) {
       dropdown.parent_id = parent_id;
