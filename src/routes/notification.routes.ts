@@ -2,7 +2,9 @@ import { Router } from "express";
 import {
   createNotification,
   getNotificationsByRecipient,
+  getNotificationById,
   markAsRead,
+  markAsUnread,
   markAllAsRead,
   getUnreadCount,
   deleteNotification,
@@ -50,6 +52,24 @@ router.put(
   "/read/:notification_id",
   checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]),
   markAsRead
+);
+
+/**
+ * MARK a single notification as unread
+ */
+router.put(
+  "/unread/:notification_id",
+  checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]),
+  markAsUnread
+);
+
+/**
+ * GET a single notification by ID
+ */
+router.get(
+  "/:notification_id",
+  checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]),
+  getNotificationById
 );
 
 /**

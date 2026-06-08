@@ -9,6 +9,7 @@ import {
   getDataReceived,
   getDataComplete,
   getBillPending,
+  getPendingBillsReport,
 } from "../controllers/monthlyCompliance.controller";
 import { checkRole } from "../middlewares/checkRole";
 import { Roles } from "../commons/roles";
@@ -24,6 +25,8 @@ router.get("/data-received", checkRole([Roles.EMPLOYEE]), getDataReceived);
 router.get("/data-complete", checkRole([Roles.EMPLOYEE]), getDataComplete);
 
 router.get("/bill-pending", checkRole([Roles.ACCOUNTANT, Roles.ADMIN]), getBillPending);
+
+router.get("/pending-bills-report", checkRole([Roles.ADMIN]), getPendingBillsReport);
 
 // Create monthly compliance (Admin only)
 router.post("/", checkRole([Roles.ADMIN]), createMonthlyCompliance);

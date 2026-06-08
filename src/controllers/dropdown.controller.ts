@@ -18,13 +18,19 @@ export const createDropdown = async (req: Request, res: Response) => {
   }
 
   try {
-    const { name, type } = req.body;
+    const { name, type, parent_id } = req.body;
 
-    const existing = await Dropdown.findOne({
+    const query: any = {
       company_id: user.company_id,
       type,
       name: name.trim(),
-    });
+    };
+
+    if (parent_id) {
+      query.parent_id = parent_id;
+    }
+
+    const existing = await Dropdown.findOne(query);
 
     if (existing) {
       return res.status(400).json({
@@ -36,6 +42,7 @@ export const createDropdown = async (req: Request, res: Response) => {
       company_id: user.company_id,
       name: name.trim(),
       type,
+      parent_id: parent_id || undefined,
     });
 
     return res.status(201).json({
@@ -62,7 +69,7 @@ export const getDropdowns = async (req: Request, res: Response) => {
   }
 
   try {
-    const { type } = req.query;
+    const { type, parent_id } = req.query;
 
     const query: any = {
       company_id: user.company_id,
@@ -70,6 +77,10 @@ export const getDropdowns = async (req: Request, res: Response) => {
 
     if (type) {
       query.type = type;
+    }
+
+    if (parent_id) {
+      query.parent_id = parent_id;
     }
 
     const dropdowns = await Dropdown.find(query).sort({
@@ -139,7 +150,7 @@ export const updateDropdown = async (req: Request, res: Response) => {
   }
 
   try {
-    const { name } = req.body;
+    const { name, parent_id } = req.body;
 
     const dropdown = await Dropdown.findOne({
       _id: req.params.id,
@@ -152,12 +163,18 @@ export const updateDropdown = async (req: Request, res: Response) => {
       });
     }
 
-    const duplicate = await Dropdown.findOne({
+    const query: any = {
       _id: { $ne: dropdown._id },
       company_id: user.company_id,
       type: dropdown.type,
       name: name.trim(),
-    });
+    };
+
+    if (parent_id || dropdown.parent_id) {
+      query.parent_id = parent_id || dropdown.parent_id;
+    }
+
+    const duplicate = await Dropdown.findOne(query);
 
     if (duplicate) {
       return res.status(400).json({
@@ -166,6 +183,9 @@ export const updateDropdown = async (req: Request, res: Response) => {
     }
 
     dropdown.name = name.trim();
+    if (parent_id !== undefined) {
+      dropdown.parent_id = parent_id;
+    }
 
     await dropdown.save();
 

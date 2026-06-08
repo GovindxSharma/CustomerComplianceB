@@ -3,7 +3,8 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface IDropdown extends Document {
   company_id: mongoose.Schema.Types.ObjectId;
   name: string;
-  type: "license" | "password";
+  type: "license" | "password" | "companyName" | "businessUnit";
+  parent_id?: mongoose.Schema.Types.ObjectId;
 }
 
 const dropdownSchema = new Schema<IDropdown>(
@@ -16,8 +17,13 @@ const dropdownSchema = new Schema<IDropdown>(
     name: { type: String, required: true },
     type: {
       type: String,
-      enum: ["license", "password"],
+      enum: ["license", "password", "companyName", "businessUnit"],
       required: true,
+    },
+    parent_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Dropdown",
+      required: false,
     },
   },
   { timestamps: true },

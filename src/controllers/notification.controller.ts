@@ -67,7 +67,15 @@ export const getNotificationsByRecipient = async (
     })
       .populate({
         path: "client_id",
-        select: "name", // or just "name" based on your Client schema
+        select: "name",
+      })
+      .populate({
+        path: "createdBy",
+        select: "name",
+      })
+      .populate({
+        path: "company_id",
+        select: "name",
       })
       .sort({ createdAt: -1 })
       .lean();
@@ -75,6 +83,35 @@ export const getNotificationsByRecipient = async (
     return res.status(200).json({ data: notifications });
   } catch (error: any) {
     console.error("Fetch Notification Error:", error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// ---------------------------------------------
+// GET A SINGLE NOTIFICATION BY ID
+// ---------------------------------------------
+export const getNotificationById = async (req: Request, res: Response) => {
+  try {
+    const { notification_id } = req.params;
+
+    const notifObj = toObjectId(notification_id);
+    if (!notifObj) {
+      return res.status(400).json({ message: "Invalid notification id." });
+    }
+
+    const notification = await Notification.findById(notifObj)
+      .populate({ path: "client_id", select: "name" })
+      .populate({ path: "createdBy", select: "name" })
+      .populate({ path: "company_id", select: "name" })
+      .lean();
+
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found." });
+    }
+
+    return res.status(200).json({ data: notification });
+  } catch (error: any) {
+    console.error("Get Notification By Id Error:", error);
     return res.status(500).json({ message: error.message });
   }
 };
@@ -108,6 +145,39 @@ export const markAsRead = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error("Mark Read Error:", error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// ---------------------------------------------
+// MARK A NOTIFICATION AS UNREAD
+// ---------------------------------------------
+export const markAsUnread = async (req: Request, res: Response) => {
+  try {
+    const { notification_id } = req.params;
+
+    const notifObj = toObjectId(notification_id);
+
+    if (!notifObj) {
+      return res.status(400).json({ message: "Invalid notification id." });
+    }
+
+    const updated = await Notification.findByIdAndUpdate(
+      notifObj,
+      { isRead: false },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: "Notification not found." });
+    }
+
+    return res.status(200).json({
+      message: "Notification marked as unread.",
+      data: updated,
+    });
+  } catch (error: any) {
+    console.error("Mark Unread Error:", error);
     return res.status(500).json({ message: error.message });
   }
 };

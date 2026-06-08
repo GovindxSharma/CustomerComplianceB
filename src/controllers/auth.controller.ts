@@ -10,10 +10,10 @@ import { License } from "../models/license.model";
 
 // Login
 export const login = async (req: Request, res: Response) => {
-    try {
-      const JWT_SECRET = process.env.JWT_SECRET!;
-        const JWT_EXPIRES_IN = "12h";
-        
+  try {
+    const JWT_SECRET = process.env.JWT_SECRET!;
+    const JWT_EXPIRES_IN = "12h";
+
     const { identifier, password } = req.body; // identifier can be email or user_id
 
     if (!identifier || !password)
@@ -41,7 +41,7 @@ export const login = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { id: user._id, role: user.role, company_id: user.company_id },
       JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
+      { expiresIn: JWT_EXPIRES_IN },
     );
 
     res.status(200).json({ message: "Login successful", token, user });
@@ -50,7 +50,6 @@ export const login = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 // Logout
 export const logout = async (req: Request, res: Response) => {
@@ -83,13 +82,12 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     if (role === "Admin" || role === "Accountant") {
       clientIds = await Client.find({ company_id }, { _id: 1 }).lean();
     } else if (role === "Employee") {
-      clientIds = await Client.find(
-        { assignedTo: userId },
-        { _id: 1 },
-      ).lean();
+      clientIds = await Client.find({ assignedTo: userId }, { _id: 1 }).lean();
     }
 
-    const clientIdList = clientIds.map((c) => new mongoose.Types.ObjectId(c._id.toString()));
+    const clientIdList = clientIds.map(
+      (c) => new mongoose.Types.ObjectId(c._id.toString()),
+    );
 
     /* =========================
        TOTAL CLIENTS
@@ -229,37 +227,75 @@ export const getDashboardStats = async (req: Request, res: Response) => {
 export const getClientMonthlyStats = async (req: Request, res: Response) => {
   try {
     const company_id = req.user?.company_id;
-    if (!company_id)
-      return res.status(400).json({ message: "Company ID missing" });
+
+    if (!company_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Company ID missing",
+      });
+    }
+
+    const year =
+      parseInt(req.query.year as string, 10) || new Date().getFullYear();
 
     const clients = await Client.find({ company_id });
 
-    const stats: Record<string, { new: number; inactive: number }> = {};
-
-    clients.forEach((client) => {
-      const month = client.startMonth || "Unknown";
-      if (!stats[month]) stats[month] = { new: 0, inactive: 0 };
-
-      if (client.status === "Active") stats[month].new += 1;
-      else if (client.status === "Inactive") stats[month].inactive += 1;
-    });
-
-    // ✅ TS-safe mapping
-    const result = Object.keys(stats).map((month) => ({
-      month,
-      new: stats[month]?.new || 0,
-      inactive: stats[month]?.inactive || 0,
+    // Index 1-12 will be used for months
+    const monthStats = Array.from({ length: 13 }, () => ({
+      new: 0,
+      inactive: 0,
     }));
 
-    return res.status(200).json({ success: true, data: result });
+    clients.forEach((client) => {
+      if (!client.createdAt) return;
+
+      const createdAt = new Date(client.createdAt);
+
+      if (createdAt.getFullYear() !== year) return;
+
+      const month = createdAt.getMonth() + 1; // 1-12
+
+      if (client.status === "Active") {
+        monthStats[month]!.new += 1;
+      } else if (client.status === "Inactive") {
+        monthStats[month]!.inactive += 1;
+      }
+    });
+
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+
+    const result = monthNames.map((monthName, index) => ({
+      month: monthName,
+      new: monthStats[index + 1]?.new ?? 0,
+      inactive: monthStats[index + 1]?.inactive ?? 0,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
   } catch (err) {
     console.error("Client monthly stats error:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to load client stats" });
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load client stats",
+    });
   }
 };
-
 
 // ======================
 // REVENUE PER MONTH
@@ -271,10 +307,10 @@ export const getRevenueMonthly = async (req: Request, res: Response) => {
     if (!company_id)
       return res.status(400).json({ message: "Company ID missing" });
 
-const currentYear = new Date().getFullYear();
-const yearParam = Number(req.query.year);
+    const currentYear = new Date().getFullYear();
+    const yearParam = Number(req.query.year);
 
-const year = !isNaN(yearParam) ? yearParam : currentYear;
+    const year = !isNaN(yearParam) ? yearParam : currentYear;
 
     // Step 1: Get clients of company
     const clients = await Client.find({ company_id }, { _id: 1 }).lean();
@@ -309,13 +345,13 @@ const year = !isNaN(yearParam) ? yearParam : currentYear;
     });
 
     // Step 4: Aggregate revenue
-records.forEach((rec) => {
-  const month = rec.month;
+    records.forEach((rec) => {
+      const month = rec.month;
 
-  if (month && revenueMap[month] !== undefined) {
-    revenueMap[month] += rec.actualBill || 0;
-  }
-});
+      if (month && revenueMap[month] !== undefined) {
+        revenueMap[month] += rec.actualBill || 0;
+      }
+    });
 
     // Step 5: Ensure ascending order
     const result = months.map((month) => ({
