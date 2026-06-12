@@ -10,6 +10,7 @@ import {
   getDataComplete,
   getBillPending,
   getPendingBillsReport,
+  deleteExtraMonthRecords,
 } from "../controllers/monthlyCompliance.controller";
 import { checkRole } from "../middlewares/checkRole";
 import { Roles } from "../commons/roles";
@@ -37,6 +38,9 @@ router.get(
   checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]),
   getMonthlyComplianceByClient
 );
+
+// Delete all extra month records (Admin only)
+router.delete("/cleanup/extra-records", checkRole([Roles.ADMIN]), deleteExtraMonthRecords);
 
 // Get a single record by ID (Admin, Accountant, Employee)
 router.get("/:id", checkRole([Roles.ADMIN, Roles.ACCOUNTANT, Roles.EMPLOYEE]), getMonthlyComplianceById);

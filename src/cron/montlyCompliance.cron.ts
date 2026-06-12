@@ -10,8 +10,17 @@ import { generateNextMonthComplianceForAllClients } from "../helpers/monthlyComp
  * change the schedule to "* * * * *" (every minute), run once, then revert.
  */
 export const monthlyComplianceCron = () => {
-  // Fire at 00:05 on the 1st of every month
-  cron.schedule("5 0 1 * *", async () => {
+  // Fire at 00:05 daily, but only run the record generation if today is the last day of the month
+  cron.schedule("5 0 * * *", async () => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    // If tomorrow's month is same as today's month, it's not the last day of the month
+    if (tomorrow.getMonth() === today.getMonth()) {
+      return;
+    }
+
     const startedAt = new Date();
     console.log(`[Compliance Cron] 🕛 Started at ${startedAt.toISOString()}`);
 
@@ -38,6 +47,6 @@ export const monthlyComplianceCron = () => {
   });
 
   console.log(
-    "[Compliance Cron] 📅 Scheduled for 00:05 on the 1st of every month",
+    "[Compliance Cron] 📅 Scheduled for 00:05 daily (checks for last day of month)",
   );
 };

@@ -615,3 +615,40 @@ export const getPendingBillsReport = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+// Delete all extra month records (which are not supposed to be yet created)
+export const deleteExtraMonthRecords = async (req: Request, res: Response) => {
+  try {
+    const today = new Date();
+    const currentMonthVal = today.getMonth() + 1; // 1-indexed
+    const currentYearVal = today.getFullYear();
+    const currentMonthStr = currentMonthVal.toString().padStart(2, "0");
+
+    const deleteQuery = {
+      $or: [
+        { year: { $gt: currentYearVal } },
+        { year: currentYearVal, month: { $gt: currentMonthStr } },
+        { year: { $lt: 2000 } }
+      ]
+    };
+
+    // Find first to report what we deleted
+    const recordsToDelete = await MonthlyCompliance.find(deleteQuery).select("_id client_id month year").lean();
+    
+    const result = await MonthlyCompliance.deleteMany(deleteQuery);
+
+    return res.status(200).json({
+      message: "Extra monthly compliance records deleted successfully",
+      deletedCount: result.deletedCount,
+      deletedRecords: recordsToDelete.map((r: any) => ({
+        _id: r._id,
+        client_id: r.client_id,
+        month: r.month,
+        year: r.year,
+      })),
+    });
+  } catch (err) {
+    console.error("[Cleanup Extra Records] ❌", err);
+    return res.status(500).json({ message: "Server error during cleanup" });
+  }
+};
