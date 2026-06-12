@@ -31,9 +31,19 @@ app.use("/", routes);
  * POST /admin/trigger-monthly-compliance
  * Protected by whatever auth middleware you have on admin routes.
  */
-app.post("/admin/trigger-monthly-compliance", async (_req, res) => {
+app.post("/admin/trigger-monthly-compliance", async (req, res) => {
   try {
-    const summary = await generateNextMonthComplianceForAllClients();
+    const { month, year } = { ...req.query, ...req.body };
+    let summary;
+
+    if (month && year) {
+      const overrideMonth = parseInt(month as string, 10);
+      const overrideYear = parseInt(year as string, 10);
+      summary = await generateNextMonthComplianceForAllClients(undefined, overrideMonth, overrideYear);
+    } else {
+      summary = await generateNextMonthComplianceForAllClients();
+    }
+
     res.json({ ok: true, summary });
   } catch (err) {
     console.error("[Manual Trigger] ❌", err);

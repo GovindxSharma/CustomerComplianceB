@@ -112,12 +112,25 @@ export const getNextMonthYear = (from: Date = new Date()) => {
 export const generateNextMonthComplianceForClient = async (
   clientId: mongoose.Types.ObjectId,
   referenceDate: Date = new Date(),
+  overrideMonth?: number,
+  overrideYear?: number,
 ): Promise<"created" | "exists" | "skipped"> => {
   // Confirm client still exists and is active
   const client = await Client.findById(clientId, { status: 1 }).lean();
   if (!client || client.status !== "Active") return "skipped";
 
-  const { month, year } = getNextMonthYear(referenceDate);
+  let month: number;
+  let year: number;
+
+  if (overrideMonth && overrideYear) {
+    month = overrideMonth;
+    year = overrideYear;
+  } else {
+    const nextMonthYear = getNextMonthYear(referenceDate);
+    month = nextMonthYear.month;
+    year = nextMonthYear.year;
+  }
+
   const paddedMonth = month.toString().padStart(2, "0");
 
   try {
@@ -133,6 +146,8 @@ export const generateNextMonthComplianceForClient = async (
  */
 export const generateNextMonthComplianceForAllClients = async (
   referenceDate: Date = new Date(),
+  overrideMonth?: number,
+  overrideYear?: number,
 ): Promise<{
   created: number;
   exists: number;
@@ -149,6 +164,8 @@ export const generateNextMonthComplianceForAllClients = async (
       const result = await generateNextMonthComplianceForClient(
         client._id as mongoose.Types.ObjectId,
         referenceDate,
+        overrideMonth,
+        overrideYear,
       );
       summary[result]++;
     } catch (err) {
