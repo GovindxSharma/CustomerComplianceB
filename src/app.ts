@@ -5,7 +5,7 @@ import cors from "cors";
 import routes from "./routes";
 import "./models/category.model";
 import { monthlyComplianceCron } from "./cron/montlyCompliance.cron";
-import { generateNextMonthComplianceForAllClients } from "./helpers/monthlyCompliance.helper";
+import { generateCurrentMonthComplianceForAllClients } from "./helpers/monthlyCompliance.helper";
 
 const app = express();
 
@@ -39,9 +39,9 @@ app.post("/admin/trigger-monthly-compliance", async (req, res) => {
     if (month && year) {
       const overrideMonth = parseInt(month as string, 10);
       const overrideYear = parseInt(year as string, 10);
-      summary = await generateNextMonthComplianceForAllClients(undefined, overrideMonth, overrideYear);
+      summary = await generateCurrentMonthComplianceForAllClients(undefined, overrideMonth, overrideYear);
     } else {
-      summary = await generateNextMonthComplianceForAllClients();
+      summary = await generateCurrentMonthComplianceForAllClients();
     }
 
     res.json({ ok: true, summary });
