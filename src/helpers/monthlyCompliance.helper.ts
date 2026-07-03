@@ -60,8 +60,13 @@ export const generateMonthlyComplianceRecordsForClient = async (
   startYear: number,
 ): Promise<void> => {
   const today = new Date();
-  const endMonth = today.getMonth() + 1; // 1-indexed
-  const endYear = today.getFullYear();
+  
+  let endMonth = today.getMonth(); // 0-indexed month is equivalent to 1-indexed previous month (e.g. July (6) -> June (6))
+  let endYear = today.getFullYear();
+  if (endMonth === 0) {
+    endMonth = 12;
+    endYear--;
+  }
 
   let m = startMonth;
   let y = startYear;
@@ -88,28 +93,24 @@ export const generateMonthlyComplianceRecordsForClient = async (
   }
 };
 
-// ─── 2. NEXT-MONTH (used by cron) ────────────────────────────────────────────
+// ─── 2. CURRENT-MONTH (used by cron) ─────────────────────────────────────────
 /**
- * Computes next calendar month relative to a given date.
+ * Computes current calendar month relative to a given date.
  * Exported for unit testing.
  */
-export const getNextMonthYear = (from: Date = new Date()) => {
-  let month = from.getMonth() + 2; // 0-indexed + 1 (current) + 1 (next) = +2
-  let year = from.getFullYear();
-  if (month > 12) {
-    month = 1;
-    year++;
-  }
+export const getCurrentMonthYear = (from: Date = new Date()) => {
+  const month = from.getMonth() + 1; // 0-indexed + 1 = 1-indexed current month
+  const year = from.getFullYear();
   return { month, year };
 };
 
 /**
- * Creates the next month's MonthlyCompliance record for a single active client.
+ * Creates the current month's MonthlyCompliance record for a single active client.
  * Called per-client from the cron runner.
  *
  * Returns: 'created' | 'exists' | 'skipped'
  */
-export const generateNextMonthComplianceForClient = async (
+export const generateCurrentMonthComplianceForClient = async (
   clientId: mongoose.Types.ObjectId,
   referenceDate: Date = new Date(),
   overrideMonth?: number,
@@ -126,9 +127,9 @@ export const generateNextMonthComplianceForClient = async (
     month = overrideMonth;
     year = overrideYear;
   } else {
-    const nextMonthYear = getNextMonthYear(referenceDate);
-    month = nextMonthYear.month;
-    year = nextMonthYear.year;
+    const currentMonthYear = getCurrentMonthYear(referenceDate);
+    month = currentMonthYear.month;
+    year = currentMonthYear.year;
   }
 
   const paddedMonth = month.toString().padStart(2, "0");
@@ -141,10 +142,10 @@ export const generateNextMonthComplianceForClient = async (
 };
 
 /**
- * Runs generateNextMonthComplianceForClient for every active client.
+ * Runs generateCurrentMonthComplianceForClient for every active client.
  * Called by the cron job and the manual admin trigger route.
  */
-export const generateNextMonthComplianceForAllClients = async (
+export const generateCurrentMonthComplianceForAllClients = async (
   referenceDate: Date = new Date(),
   overrideMonth?: number,
   overrideYear?: number,
@@ -161,7 +162,7 @@ export const generateNextMonthComplianceForAllClients = async (
 
   for (const client of clients) {
     try {
-      const result = await generateNextMonthComplianceForClient(
+      const result = await generateCurrentMonthComplianceForClient(
         client._id as mongoose.Types.ObjectId,
         referenceDate,
         overrideMonth,

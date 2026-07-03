@@ -60,21 +60,42 @@ export const generateMonthlyComplianceForClient = async (
 // Create / add a new monthly compliance manually (Admin only)
 export const createMonthlyCompliance = async (req: Request, res: Response) => {
   try {
-    const { client_id, month, year} = req.body;
+    const { client_id, month, year } = req.body;
     if (!client_id || !month || !year) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-   const record = await MonthlyCompliance.create({
-     client_id,
-     month: month.toString().padStart(2, "0"),
-     year,
-     category_id: null,
-     dataReceiveStatus: "Not Received",
-     workProgress: "Not Started",
-   });
+    const paddedMonth = month.toString().padStart(2, "0");
+    const yearNum = Number(year);
+
+    const exists = await MonthlyCompliance.findOne({
+      client_id,
+      month: paddedMonth,
+      year: yearNum,
+    }).lean();
+
+    if (exists) {
+      return res.status(400).json({
+        message: "Compliance record for this month and year already exists",
+      });
+    }
+
+    const record = await MonthlyCompliance.create({
+      client_id,
+      month: paddedMonth,
+      year: yearNum,
+      category_id: null,
+      dataReceiveStatus: "Not Received",
+      workProgress: "Not Started",
+      billStatus: "Pending",
+    });
     res.status(201).json({ message: "Monthly compliance created", record });
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === 11000) {
+      return res.status(400).json({
+        message: "Compliance record for this month and year already exists",
+      });
+    }
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
@@ -352,19 +373,14 @@ export const deleteMonthlyCompliance = async (req: Request, res: Response) => {
   }
 };
 
-// Cron-ready: generate next month records for all clients
-export const generateNextMonthComplianceForClient = async (
+// Cron-ready: generate current month records for all clients
+export const generateCurrentMonthComplianceForClient = async (
   clientId: mongoose.Types.ObjectId
 ) => {
   const today = new Date();
 
-  let month = today.getMonth() + 2; // next month
-  let year = today.getFullYear();
-
-  if (month > 12) {
-    month = 1;
-    year += 1;
-  }
+  const month = today.getMonth() + 1; // current month
+  const year = today.getFullYear();
 
   await MonthlyCompliance.updateOne(
     {
@@ -650,5 +666,45 @@ export const deleteExtraMonthRecords = async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[Cleanup Extra Records] ❌", err);
     return res.status(500).json({ message: "Server error during cleanup" });
+  }
+};
+
+// Delete records for a specific month and year (Admin only)
+export const deleteMonthlyComplianceByMonthYear = async (req: Request, res: Response) => {
+  try {
+    const { month, year } = { ...req.query, ...req.body };
+    if (!month || !year) {
+      return res.status(400).json({ message: "Month and year are required" });
+    }
+
+    const paddedMonth = month.toString().padStart(2, "0");
+    const yearNum = Number(year);
+
+    if (isNaN(yearNum)) {
+      return res.status(400).json({ message: "Invalid year" });
+    }
+
+    const deleteQuery = {
+      month: paddedMonth,
+      year: yearNum,
+    };
+
+    // Find first to report what we deleted
+    const recordsToDelete = await MonthlyCompliance.find(deleteQuery).select("_id client_id month year").lean();
+    const result = await MonthlyCompliance.deleteMany(deleteQuery);
+
+    return res.status(200).json({
+      message: `Monthly compliance records for ${paddedMonth}/${yearNum} deleted successfully`,
+      deletedCount: result.deletedCount,
+      deletedRecords: recordsToDelete.map((r: any) => ({
+        _id: r._id,
+        client_id: r.client_id,
+        month: r.month,
+        year: r.year,
+      })),
+    });
+  } catch (err) {
+    console.error("[Delete Month-Year Records] ❌", err);
+    return res.status(500).json({ message: "Server error during deletion" });
   }
 };

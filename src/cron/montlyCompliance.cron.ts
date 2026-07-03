@@ -1,12 +1,12 @@
 import cron from "node-cron";
-import { generateNextMonthComplianceForAllClients } from "../helpers/monthlyCompliance.helper";
+import { generateCurrentMonthComplianceForAllClients } from "../helpers/monthlyCompliance.helper";
 
 /**
  * Schedules the monthly compliance record creation cron.
  *
- * Schedule: 00:05 on the 1st of every month  →  "5 0 1 * *"
+ * Schedule: 00:05 daily (only processes on the last day of the month for the current month).
  *
- * If you need to test immediately without waiting for the 1st, temporarily
+ * If you need to test immediately without waiting for the last day, temporarily
  * change the schedule to "* * * * *" (every minute), run once, then revert.
  */
 export const monthlyComplianceCron = () => {
@@ -25,7 +25,7 @@ export const monthlyComplianceCron = () => {
     console.log(`[Compliance Cron] 🕛 Started at ${startedAt.toISOString()}`);
 
     try {
-      const summary = await generateNextMonthComplianceForAllClients();
+      const summary = await generateCurrentMonthComplianceForAllClients();
       console.log(
         `[Compliance Cron] ✅ Finished — ` +
           `created: ${summary.created}, ` +
