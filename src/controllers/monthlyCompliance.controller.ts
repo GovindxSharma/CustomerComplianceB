@@ -578,14 +578,10 @@ export const getPendingBillsReport = async (req: Request, res: Response) => {
 
     const clientIds = clients.map(c => c._id);
 
-    // 2. Fetch pending bill monthly compliance records for these clientIds, specifically for last two months
+    // 2. Fetch pending bill monthly compliance records for these clientIds where dataReceiveStatus is "Not Received"
     const pendingCompliances = await MonthlyCompliance.find({
       client_id: { $in: clientIds },
-      billStatus: "Pending",
-      $or: [
-        { month: lastMonthStr, year: lastMonthYear },
-        { month: lastToLastMonthStr, year: lastToLastMonthYear }
-      ]
+      dataReceiveStatus: "Not Received"
     })
       .populate({
         path: "category_id",
