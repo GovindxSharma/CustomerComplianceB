@@ -68,7 +68,9 @@ export const updateUser = async (req: Request, res: Response) => {
     user.name = name ?? user.name;
     user.email = email ?? user.email;
     user.role = role ?? user.role;
-    user.password = password ?? user.password;
+    if (password) {
+      user.password = password;
+    }
     if (isActive !== undefined) user.isActive = isActive;
 
     await user.save();
