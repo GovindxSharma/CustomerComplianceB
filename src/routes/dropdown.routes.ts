@@ -20,11 +20,11 @@ router.post("/",
     createDropdown);
 
 router.get("/",
-    checkRole([Roles.ADMIN]),
+    checkRole([Roles.ADMIN, Roles.EMPLOYEE, Roles.ACCOUNTANT]),
     getDropdowns);
 
 router.get("/:id",
-    checkRole([Roles.ADMIN]),
+    checkRole([Roles.ADMIN, Roles.EMPLOYEE, Roles.ACCOUNTANT]),
     getDropdownById);
 
 router.put("/:id",
