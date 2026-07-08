@@ -471,6 +471,12 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
       });
     }
 
+    response.sort((a, b) => {
+      const nameA = a.name?.toLowerCase() || "";
+      const nameB = b.name?.toLowerCase() || "";
+      return nameA.localeCompare(nameB);
+    });
+
     return res.status(200).json({ clients: response });
   } catch (error) {
     console.error(error);
