@@ -302,6 +302,7 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
       month,
       year,
       category_id,
+      status,
     } = req.query as Record<string, string>;
 
     if (!company_id) {
@@ -317,6 +318,10 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
 
     // ── 1. Client query ───────────────────────────────────────────────────
     const clientQuery: any = { company_id };
+
+    if (status && status !== "All") {
+      clientQuery.status = status;
+    }
 
     if (isEmployee) {
       clientQuery.assignedTo = loggedUser.id;
@@ -471,11 +476,8 @@ export const getClientsWithCompliance = async (req: Request, res: Response) => {
       });
     }
 
-    response.sort((a, b) => {
-      const nameA = a.name?.toLowerCase() || "";
-      const nameB = b.name?.toLowerCase() || "";
-      return nameA.localeCompare(nameB);
-    });
+    // Sort clients alphabetically by name
+    response.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
     return res.status(200).json({ clients: response });
   } catch (error) {
