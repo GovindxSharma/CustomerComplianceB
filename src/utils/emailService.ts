@@ -32,7 +32,7 @@ export const sendEmail = async ({
   }
 
   const mailOptions: nodemailer.SendMailOptions = {
-    from: `"Customer Compliance Services" <${process.env.SMTP_FROM}>`,
+    from: process.env.SMTP_FROM || `"Contractor Compliance Services" <${process.env.SMTP_USER}>`,
     to,
     subject,
     ...(html ? { html } : { text }),
